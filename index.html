@@ -141,6 +141,7 @@
 .font-extrabold{font-weight:800}
 .font-mono{font-family:monospace}
 .font-sans{font-family:'Noto Sans KR',sans-serif}
+.gap-0\.5{gap:0.125rem}
 .gap-1{gap:0.25rem}
 .gap-1\.5{gap:0.375rem}
 .gap-2{gap:0.5rem}
@@ -231,6 +232,7 @@
 .mr-1{margin-right:0.25rem}
 .mt-0\.5{margin-top:0.125rem}
 .mt-1{margin-top:0.25rem}
+.mt-1\.5{margin-top:0.375rem}
 .mt-2{margin-top:0.5rem}
 .mt-\[-8px\]{margin-top:-8px}
 .my-0\.5{margin-top:0.125rem;margin-bottom:0.125rem}
@@ -241,6 +243,7 @@
 .object-fill{object-fit:fill}
 .overflow-hidden{overflow:hidden}
 .overflow-y-auto{overflow-y:auto}
+.p-1\.5{padding:0.375rem}
 .p-2{padding:0.5rem}
 .p-2\.5{padding:0.625rem}
 .p-3{padding:0.75rem}
@@ -442,6 +445,8 @@
 .lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 /* END_TW_FALLBACK */
+
+
 
 
 
@@ -1922,8 +1927,12 @@
                 <div>• <strong>보존 항목:</strong> 자원, 개별 건물, 구획 배분, 시설 레벨·오피스 강화권, 덱·손패·시찰 타이머 전체</div>
               </div>
             </div>
+            <div id="saveMigrationNoticeBox" class="hidden mt-1 p-2.5 rounded-xl bg-lime-100 border-2 border-lime-700 text-[11px] font-bold text-lime-950"></div>
             <div class="flex flex-wrap items-center justify-end gap-2 pt-1">
               <input id="inputImportSaveFile" type="file" accept=".json,application/json" class="hidden" />
+              <button id="btnExportRawBackupFile" type="button" class="trickcal-btn-cream min-h-[44px] px-3 py-1.5 rounded-xl font-trickcal text-xs" title="변환 전에 백업된 원본 세이브 데이터를 내보냅니다.">
+                🛡️ 변환 전 원본 백업 내보내기
+              </button>
               <button id="btnExportSaveFile" type="button" class="trickcal-btn min-h-[44px] px-3.5 py-1.5 rounded-xl font-trickcal text-xs text-stroke-dark">
                 💾 .json 파일 다운로드
               </button>
@@ -2084,7 +2093,10 @@
     const STORAGE_KEY_BACKUP_RAW = 'monatium_tycoon_save_backup_raw';
     const STORAGE_KEY_SLOT_PREFIX = 'monatium_tycoon_save_slot_';
     const LEGACY_STORAGE_KEYS = ['monatium_tycoon_save_v1_2', 'monatium_tycoon_save_v1_1'];
-    const SCHEMA_VERSION = '1.2.0-beta';
+    const APP_DISPLAY_VERSION = '1.3.0-Beta';
+    const SCHEMA_VERSION = '1.3.0-prog-v1';
+    const SCHEMA_NUMERIC = 130;
+    const UNLOCKABLE_FACILITY_IDS = ['fac_arcade', 'fac_parking', 'fac_security', 'fac_office', 'fac_residential'];
 
     // 게임 규칙용 시드 난수 생성기 (보강안 B-9: 동일 시드 재현 가능)
     const GameRNG = {
@@ -2121,6 +2133,37 @@
       inspectionIntervalSec: 900,                     // 15분(900초) 주기 정기 시찰 [시험안]
       earlyInspectionMinElapsedSec: 300,              // 구간 5분(300초) 경과 후 조기 시찰 요청 가능 [시험안]
       firstCheckTimeSec: 300,                         // 활성 5분(300초) 첫 업무 점검 안내
+      // [2절 확정 구조 & 1차 시험안] 통과 차수(0~8차)별 도시 레벨 및 5대 시설 개방·승급 누적 한도표
+      progressionStageTable: {
+        0: { stage: 0, cityLevel: 1, maxOpened: 1, maxLv2Plus: 0, maxLv3: 0, summary: '초기 구간 (개방 한도 1곳)' },
+        1: { stage: 1, cityLevel: 1, maxOpened: 2, maxLv2Plus: 0, maxLv3: 0, summary: '1차 통과 (개방 한도 2곳)' },
+        2: { stage: 2, cityLevel: 2, maxOpened: 3, maxLv2Plus: 1, maxLv3: 0, summary: '2차 통과 · 도시 Lv.2 승급 (개방 3곳 · Lv.2+ 1곳)' },
+        3: { stage: 3, cityLevel: 2, maxOpened: 4, maxLv2Plus: 2, maxLv3: 0, summary: '3차 통과 (개방 4곳 · Lv.2+ 2곳)' },
+        4: { stage: 4, cityLevel: 2, maxOpened: 5, maxLv2Plus: 3, maxLv3: 0, summary: '4차 통과 (5곳 전체 개방 가능 · Lv.2+ 3곳)' },
+        5: { stage: 5, cityLevel: 3, maxOpened: 5, maxLv2Plus: 5, maxLv3: 1, summary: '5차 통과 · 도시 Lv.3 승급 (Lv.2+ 5곳 · Lv.3 1곳)' },
+        6: { stage: 6, cityLevel: 3, maxOpened: 5, maxLv2Plus: 5, maxLv3: 2, summary: '6차 통과 (Lv.3 한도 2곳)' },
+        7: { stage: 7, cityLevel: 3, maxOpened: 5, maxLv2Plus: 5, maxLv3: 3, summary: '7차 통과 (Lv.3 한도 3곳)' },
+        8: { stage: 8, cityLevel: 3, maxOpened: 5, maxLv2Plus: 5, maxLv3: 5, summary: '8차 통과 (전 시설 Lv.3 권한 해금 완료)' }
+      },
+      // [4-1절 시험안] 성장 시찰 1~8차 목표표 및 유지 시찰 목표표 (특정 시설 강제 없이 인구 경로 A 또는 상시수입·시설점수 복합 경로 B 중 택1 충족 인정)
+      inspectionTargetsByStage: {
+        1: { stageIndex: 1, status: 'trial', label: '1차 성장 시찰 (개방 한도 1→2곳)', targetPop: 160, minBasePop: 140, targetBaseGpm: 8.4, targetFacScore: 1, targetAvgH: 63, targetSecRate: 75, fallbackSec: 14 },
+        2: { stageIndex: 2, status: 'trial', label: '2차 성장 시찰 (도시 Lv.1→2 승급 · Lv.2+ 1곳)', targetPop: 220, minBasePop: 190, targetBaseGpm: 11.0, targetFacScore: 2, targetAvgH: 65, targetSecRate: 75, fallbackSec: 16 },
+        3: { stageIndex: 3, status: 'trial', label: '3차 성장 시찰 (개방 3→4곳 · Lv.2+ 2곳)', targetPop: 290, minBasePop: 240, targetBaseGpm: 14.5, targetFacScore: 4, targetAvgH: 66, targetSecRate: 75, fallbackSec: 18 },
+        4: { stageIndex: 4, status: 'trial', label: '4차 성장 시찰 (5대 시설 전체 개방 · Lv.2+ 3곳)', targetPop: 360, minBasePop: 300, targetBaseGpm: 18.0, targetFacScore: 6, targetAvgH: 68, targetSecRate: 75, fallbackSec: 20 },
+        5: { stageIndex: 5, status: 'trial', label: '5차 성장 시찰 (도시 Lv.2→3 승급 · Lv.3 1곳)', targetPop: 440, minBasePop: 370, targetBaseGpm: 22.0, targetFacScore: 8, targetAvgH: 68, targetSecRate: 75, fallbackSec: 22 },
+        6: { stageIndex: 6, status: 'trial', label: '6차 성장 시찰 (Lv.3 한도 1→2곳)', targetPop: 520, minBasePop: 440, targetBaseGpm: 26.0, targetFacScore: 10, targetAvgH: 70, targetSecRate: 75, fallbackSec: 24 },
+        7: { stageIndex: 7, status: 'trial', label: '7차 성장 시찰 (Lv.3 한도 2→3곳)', targetPop: 600, minBasePop: 510, targetBaseGpm: 30.0, targetFacScore: 12, targetAvgH: 70, targetSecRate: 75, fallbackSec: 25 },
+        8: { stageIndex: 8, status: 'trial', label: '8차 최종 성장 시찰 (전 시설 Lv.3 권한 해금)', targetPop: 680, minBasePop: 580, targetBaseGpm: 35.0, targetFacScore: 13, targetAvgH: 72, targetSecRate: 75, fallbackSec: 26 },
+        maintenance: { stageIndex: 9, status: 'trial', label: 'Lv.3 최고 단계 유지 시찰 (8차 해금 완료)', targetPop: 680, minBasePop: 580, targetBaseGpm: 35.0, targetFacScore: 13, targetAvgH: 72, targetSecRate: 75, fallbackSec: 26 }
+      },
+      // [5-2절 시험안] 기본 과밀 대응 카드(B11 임시 교통 대책) 및 주차장 해금 카드(T03 출퇴근 분산제) 설정 분리
+      crowdingCardsTrial: {
+        status: 'trial',
+        totalReliefRateCap: 0.60,
+        B11: { id: 'B11', costG: 4, durationSec: 60, reliefRate: 0.20, maxPointRelief: 5.0, cooldownSec: 150, reUsePolicy: 'refresh_no_stack' },
+        T03: { id: 'T03', costG: 4, durationSec: 90, reliefRate: 0.30, maxPointRelief: 60.0, cooldownSec: 180, reUsePolicy: 'refresh_no_stack' }
+      },
       inspectionTargetsByLevel: {
         1: { label: 'Lv.1 → Lv.2 승급 심사', targetPop: 250, targetAvgH: 65, targetSecRate: 75, fallbackSec: 20 },
         2: { label: 'Lv.2 → Lv.3 승급 심사', targetPop: 600, targetAvgH: 70, targetSecRate: 75, fallbackSec: 20 },
@@ -2272,8 +2315,10 @@
       const badgeEl = document.getElementById('viewModeStageBadge');
       if (badgeEl) {
         const st = getVisualCityStage();
+        const q = getFacilityProgressionQuotaStatus();
         const stNames = { 1: 'START (개척구)', 2: 'GROWTH (성장기)', 3: 'DEVELOPED (발전완료)' };
-        badgeEl.textContent = `🌆 도시 Lv.${GameState.cityLevel || 1} · ${stNames[st] || 'START'}`;
+        const compSuffix = q.allLv3Built ? ' · ★전시설 완공' : q.allQuotaUnlocked ? ' · 8차 해금완료' : ` · ${q.stage}/8차`;
+        badgeEl.textContent = `🌆 도시 Lv.${GameState.cityLevel || 1}${compSuffix} · ${stNames[st] || 'START'}`;
       }
       if (typeof SoundEngine !== 'undefined' && SoundEngine.playClick) SoundEngine.playClick();
     }
@@ -2363,11 +2408,153 @@
       });
     }
 
+    // 7절: 인구 500 도달만으로 최종 외형이 조기 노출되던 처리를 수정하여 새 게임은 도시 레벨(2차 통과 Lv.2, 5차 통과 Lv.3)을 따르며,
+    // 기존 세이브에서 이미 본 전체 배경 외형은 visualStageFloor로 보존합니다.
     function getVisualCityStage() {
-      const cityLv = GameState.cityLevel || 1;
-      const pop = typeof getCurrentPopulation === 'function' ? getCurrentPopulation() : 100;
-      const popStage = pop >= 500 ? 3 : pop >= 220 ? 2 : 1;
-      return Math.min(3, Math.max(cityLv, popStage));
+      const cityLv = (GameState && GameState.cityLevel) || 1;
+      const floorStage = (GameState && GameState.visualStageFloor) || 1;
+      return Math.min(3, Math.max(1, cityLv, floorStage));
+    }
+
+    // 2절 & 3절: 시찰 차수(0~8차) 기반 시설 개방·승급 누적 한도 및 운영 기간 검증 헬퍼
+    function getProgressionStageRow(stageNum) {
+      const st = Math.max(0, Math.min(8, Math.round(Number(stageNum) || 0)));
+      return CONFIG.progressionStageTable[st] || CONFIG.progressionStageTable[0];
+    }
+
+    function getFacilityProgressionQuotaStatus(stateObj = GameState) {
+      const stage = Math.max(0, Math.min(8, Math.round(Number(stateObj?.passedInspectionStage) || 0)));
+      const row = getProgressionStageRow(stage);
+      const levels = (stateObj && stateObj.facilityLevels) || {};
+      let openedCount = 0;
+      let lv2PlusCount = 0;
+      let lv3Count = 0;
+      let totalLevelSum = 0;
+      UNLOCKABLE_FACILITY_IDS.forEach(fid => {
+        const lv = Math.max(0, Math.min(3, Math.round(Number(levels[fid]) || 0)));
+        totalLevelSum += lv;
+        if (lv >= 1) openedCount += 1;
+        if (lv >= 2) lv2PlusCount += 1; // Lv.3 시설도 Lv.2 이상 누적 한도에 포함
+        if (lv >= 3) lv3Count += 1;
+      });
+      return {
+        stage,
+        cityLevel: row.cityLevel,
+        row,
+        openedCount,
+        lv2PlusCount,
+        lv3Count,
+        totalLevelSum,
+        remOpen: Math.max(0, row.maxOpened - openedCount),
+        remLv2Plus: Math.max(0, row.maxLv2Plus - lv2PlusCount),
+        remLv3: Math.max(0, row.maxLv3 - lv3Count),
+        allQuotaUnlocked: stage >= 8,
+        allLv3Built: lv3Count >= UNLOCKABLE_FACILITY_IDS.length
+      };
+    }
+
+    function getFacilityStageMeta(facId, stateObj = GameState) {
+      const metaMap = (stateObj && stateObj.facilityStageMeta) || {};
+      const entry = metaMap[facId];
+      if (entry && typeof entry === 'object') {
+        return {
+          openedAtStage: Number.isFinite(Number(entry.openedAtStage)) ? Number(entry.openedAtStage) : null,
+          lastUpgradedAtStage: Number.isFinite(Number(entry.lastUpgradedAtStage)) ? Number(entry.lastUpgradedAtStage) : null
+        };
+      }
+      const curLv = (stateObj && stateObj.facilityLevels && stateObj.facilityLevels[facId]) || 0;
+      if (curLv > 0) {
+        return { openedAtStage: -1, lastUpgradedAtStage: -1 };
+      }
+      return { openedAtStage: null, lastUpgradedAtStage: null };
+    }
+
+    function checkFacilityActionEligibility(facId, stateObj = GameState) {
+      const fac = MAP_FACILITIES.find(f => f.id === facId);
+      if (!fac || !fac.isUnlockable) {
+        return { canExecute: false, reason: '업그레이드 대상이 아닌 시설', shortBadge: '고정 시설' };
+      }
+      const curLv = (stateObj.facilityLevels && stateObj.facilityLevels[facId]) || 0;
+      if (curLv >= 3) {
+        return { canExecute: false, isMax: true, reason: 'Lv.3 최대 레벨 완료', shortBadge: '★ Lv.3 완료' };
+      }
+      const targetLv = curLv + 1;
+      const costG = fac.costsByLv[curLv];
+      const q = getFacilityProgressionQuotaStatus(stateObj);
+      const meta = getFacilityStageMeta(facId, stateObj);
+      const goldOk = (stateObj.gold || 0) + 1e-6 >= costG;
+
+      let quotaOk = true;
+      let quotaReason = null;
+      let periodOk = true;
+      let periodReason = null;
+      let cityLvOk = (stateObj.cityLevel || 1) >= targetLv;
+
+      if (targetLv === 1) {
+        if (q.openedCount >= q.row.maxOpened) {
+          quotaOk = false;
+          quotaReason = `시설 개방 한도 도달 (${q.openedCount}/${q.row.maxOpened}곳) · 다음 시찰 통과 시 +1`;
+        }
+      } else if (targetLv === 2) {
+        if (meta.openedAtStage !== null && q.stage <= meta.openedAtStage) {
+          periodOk = false;
+          periodReason = `이번 구간(${q.stage}차)에 개방한 시설입니다. 다음 시찰 통과 후 Lv.2 승급 가능합니다.`;
+        }
+        if (q.lv2PlusCount >= q.row.maxLv2Plus) {
+          quotaOk = false;
+          quotaReason = q.stage < 2
+            ? `2차 시찰 통과(도시 Lv.2) 후 Lv.2 승급 한도가 열립니다 (현재 0/0곳)`
+            : `Lv.2 이상 시설 한도 도달 (${q.lv2PlusCount}/${q.row.maxLv2Plus}곳) · 다음 시찰 통과 필요`;
+        }
+      } else if (targetLv === 3) {
+        if (meta.lastUpgradedAtStage !== null && q.stage <= meta.lastUpgradedAtStage) {
+          periodOk = false;
+          periodReason = `이번 구간(${q.stage}차)에 Lv.2로 승급한 시설입니다. 다음 시찰 통과 후 Lv.3 승급 가능합니다.`;
+        }
+        if (q.lv3Count >= q.row.maxLv3) {
+          quotaOk = false;
+          quotaReason = q.stage < 5
+            ? `5차 시찰 통과(도시 Lv.3) 후 Lv.3 승급 한도가 열립니다 (현재 0/0곳)`
+            : `Lv.3 시설 한도 도달 (${q.lv3Count}/${q.row.maxLv3}곳) · 다음 시찰 통과 필요`;
+        }
+      }
+
+      const canExecute = cityLvOk && periodOk && quotaOk && goldOk;
+      let primaryBlockReason = null;
+      let shortBadge = '';
+      if (!periodOk) {
+        primaryBlockReason = periodReason;
+        shortBadge = `⏳ 차기 시찰 후 승급`;
+      } else if (!quotaOk) {
+        primaryBlockReason = quotaReason;
+        shortBadge = targetLv === 1 ? `🔒 개방한도 ${q.openedCount}/${q.row.maxOpened}` : `🔒 Lv.${targetLv}한도 대기`;
+      } else if (!cityLvOk) {
+        primaryBlockReason = `도시 Lv.${targetLv} 승급 필요`;
+        shortBadge = `🔒 도시Lv.${targetLv} 필요`;
+      } else if (!goldOk) {
+        primaryBlockReason = `골드 부족 (${costG}G 필요)`;
+        shortBadge = curLv === 0 ? `🔓 ${costG}G (골드부족)` : `⬆️ Lv.${targetLv} (${costG}G)`;
+      } else {
+        shortBadge = curLv === 0 ? `🔓 개방가능 (${costG}G)` : `⬆️ Lv.${targetLv} 가능`;
+      }
+
+      return {
+        canExecute,
+        isMax: false,
+        curLv,
+        targetLv,
+        costG,
+        cityLvOk,
+        periodOk,
+        periodReason,
+        quotaOk,
+        quotaReason,
+        goldOk,
+        primaryBlockReason,
+        shortBadge,
+        quotaStatus: q,
+        meta
+      };
     }
 
     function getFacilityStageImage(facId, lv) {
@@ -2446,6 +2633,7 @@
       B08: { id: 'B08', status: 'confirmed', name: '시설 철거', kind: 'A', category: 'admin', zone: null, tags: ['demolish'], costG: 5, space: 0, unlockFacilityId: null, reqFacLv: 0, isMandatory: true, iconKey: 'demolish', isDemolish: true, cooldown: 0, desc: '[철거 액티브·필수] 설치 시설 1개 철거 (5G 1회 청구·점유 반환)' },
       B09: { id: 'B09', status: 'trial', name: '순찰대 보충', kind: 'A', category: 'security', zone: null, tags: ['sec'], costG: 4, space: 0, unlockFacilityId: null, reqFacLv: 0, isMandatory: true, iconKey: 'patrol', secDelta: 10, cooldown: 0, desc: '[치안 액티브·필수] 진압력 +10 즉시 보충 (치안본부 보정 적용)' },
       B10: { id: 'B10', status: 'trial', name: '안심 순찰', kind: 'A', category: 'security', zone: null, tags: ['sec'], costG: 5, space: 0, unlockFacilityId: null, reqFacLv: 0, iconKey: 'patrol', secDelta: 6, sDelta: 4, cooldown: 0, desc: '[치안 액티브] 진압력 +6 보충, 기초 만족도 S +4 회복' },
+      B11: { id: 'B11', status: 'trial', name: '임시 교통 대책', kind: 'A', category: 'admin', zone: null, tags: ['admin'], costG: 4, space: 0, unlockFacilityId: null, reqFacLv: 0, iconKey: 'parking', buff: { id: 'B11', name: '임시 교통 대책', tempCrowdingRelief: 0.20, maxPointRelief: 5.0, duration: 60 }, cooldown: 150, desc: '[60초 버프·기본과밀대응] 과밀 감점 20% 완화(최대 5점, 쿨 150초·중첩불가)' },
 
       // [6.3 상업 아케이드 해금 3종: C02, C04, C03]
       C02: { id: 'C02', status: 'trial', name: '전문 상점가', kind: 'P', category: 'building', zone: 'com', tags: ['com'], costG: 14, space: 8, unlockFacilityId: 'fac_arcade', reqFacLv: 1, iconKey: 'plaza', pop: 0, upkeepPerMinute: 0, sDelta: 0, gpm: 3.0, highHappyBonusGpm: 1.2, secPerMin: 0, cooldown: 0, desc: '[상업 8칸·아케이드Lv1] 수익 +3.0G/분 (H>=80 시 +1.2G/분 추가)' },
@@ -2652,12 +2840,20 @@
         });
       }
 
-      const startDeck = ['B01', 'B01', 'B02', 'B03', 'B04', 'B05', 'B06', 'B07', 'B08', 'B08', 'B09', 'B10'];
-      const lv1Target = CONFIG.inspectionTargetsByLevel[1];
+      // 5-1절: 새 게임 초기 덱(12장)에 [주민 간담회(B06)] 1장과 [임시 교통 대책(B11)] 1장을 각각 포함 (필수 4종 유지, 비필수 중복 B08 2장→1장으로 조정)
+      const startDeck = ['B01', 'B01', 'B02', 'B03', 'B04', 'B05', 'B06', 'B07', 'B08', 'B09', 'B10', 'B11'];
+      const stage1Target = CONFIG.inspectionTargetsByStage[1];
 
       return {
         version: SCHEMA_VERSION,
+        appDisplayVersion: APP_DISPLAY_VERSION,
+        schemaNumeric: SCHEMA_NUMERIC,
+        progressionMigratedV13: true,
+        passedInspectionStage: 0,
         cityLevel: 1,
+        visualStageFloor: 1,
+        freeDeckEditCredits: 0,
+        migrationNotice: null,
         gold: 20.0,
         satisfaction: 70.0,
         suppression: 10.0,
@@ -2671,6 +2867,13 @@
           fac_security: 0,
           fac_office: 0,
           fac_residential: 0
+        },
+        facilityStageMeta: {
+          fac_arcade: { openedAtStage: null, lastUpgradedAtStage: null },
+          fac_parking: { openedAtStage: null, lastUpgradedAtStage: null },
+          fac_security: { openedAtStage: null, lastUpgradedAtStage: null },
+          fac_office: { openedAtStage: null, lastUpgradedAtStage: null },
+          fac_residential: { openedAtStage: null, lastUpgradedAtStage: null }
         },
         officeSlotDiscounts: {
           tier1CardId: null,
@@ -2711,7 +2914,7 @@
           salaryEffectRemainingSec: 0,
           eventPenaltyMultiplier: 1.0,
           eventPenaltyRemainingSec: 0,
-          targetSnapshot: { ...lv1Target },
+          targetSnapshot: { ...stage1Target },
           evaluatedPeriodIds: [],
           rewardGrantedPeriodIds: []
         },
@@ -2984,29 +3187,60 @@
       return def.secDelta;
     }
 
-    // 7.4절: 행복도와 과밀 산식 (주거 타운 전용 칸은 generalHousingAllocation에 합산하지 않음)
-    function computeHappinessMetrics() {
-      const pop = getCurrentPopulation();
-      const S = Math.max(0, Math.min(100, Number.isFinite(GameState.satisfaction) ? GameState.satisfaction : 70));
+    // 7.4절 & 5-2절: 행복도와 과밀 산식 (주차장 영구 완화 + T03 출퇴근 분산제 + B11 임시 교통 대책 합산 순서 및 총 상한 60% 단일 함수 처리)
+    function computeHappinessMetrics(overridePop = null, overrideParkingLv = null, overrideS = null) {
+      const pop = overridePop !== null ? overridePop : getCurrentPopulation();
+      const baseSat = overrideS !== null ? overrideS : (Number.isFinite(GameState.satisfaction) ? GameState.satisfaction : 70);
+      const S = Math.max(0, Math.min(100, baseSat));
 
       const generalHousingAllocation = (GameState.zoneAllocations && GameState.zoneAllocations.res) || 0;
       const baseC = 100 + generalHousingAllocation * 4;
-      const parkingLv = getFacilityLevel('fac_parking');
+      const parkingLv = overrideParkingLv !== null ? overrideParkingLv : getFacilityLevel('fac_parking');
       const parkingCapBonus = parkingLv === 1 ? 100 : parkingLv === 2 ? 200 : parkingLv >= 3 ? 300 : 0;
       const C = baseC + parkingCapBonus;
 
+      // 과밀 원시 감점 (인구가 C 이하이면 0, 초과 시 10명당 1점, 최대 60점)
       const rawCrowding = Math.min(60, Math.max(0, (pop - C) / 10));
 
+      // 1) 주차장 영구 완화율 (Lv.1: 10%, Lv.2: 20%, Lv.3: 30%)
       const permRelief = parkingLv === 1 ? 0.10 : parkingLv === 2 ? 0.20 : parkingLv >= 3 ? 0.30 : 0;
-      const tempReliefRaw = GameState.buffs.reduce((acc, bf) => acc + (bf.tempCrowdingRelief || 0), 0);
-      const totalRelief = Math.min(0.60, Math.max(0, permRelief + tempReliefRaw));
 
-      const appliedCrowding = rawCrowding * (1 - totalRelief);
+      // 2) 일시 과밀 완화 버프 합산 (동일 카드 중복 누적 불가, 총 완화율 상한 60%, B11 기본 대책은 단독 최대 5.0점 완화 캡 적용)
+      const capRate = (CONFIG.crowdingCardsTrial && CONFIG.crowdingCardsTrial.totalReliefRateCap) || 0.60;
+      let t03Rate = 0;
+      let b11Rate = 0;
+      let b11MaxPt = 5.0;
+      let tempReliefRemainingSec = 0;
 
-      const tempHappy = GameState.buffs.reduce((acc, bf) => acc + (bf.tempHappy || 0), 0);
+      (GameState.buffs || []).forEach(bf => {
+        if (!bf || !(bf.tempCrowdingRelief > 0) || !(bf.remainingSec > 0)) return;
+        tempReliefRemainingSec = Math.max(tempReliefRemainingSec, bf.remainingSec);
+        if (bf.id === 'B11') {
+          b11Rate = Math.max(b11Rate, bf.tempCrowdingRelief);
+          if (Number.isFinite(bf.maxPointRelief)) b11MaxPt = bf.maxPointRelief;
+        } else {
+          t03Rate = Math.max(t03Rate, bf.tempCrowdingRelief);
+        }
+      });
+
+      const rateWithT03 = Math.min(capRate, permRelief + t03Rate);
+      const crowdingAfterPermAndT03 = rawCrowding * (1 - rateWithT03);
+
+      // B11(임시 교통 대책)은 총 완화율 상한(60%) 내에서 추가 완화하되 최대 b11MaxPt(5.0점)까지만 감점을 줄임
+      const maxAllowedExtraRate = Math.max(0, capRate - rateWithT03);
+      const effB11Rate = Math.min(b11Rate, maxAllowedExtraRate);
+      const b11PointReduction = Math.min(b11MaxPt, rawCrowding * effB11Rate);
+
+      const appliedCrowding = Math.max(0, crowdingAfterPermAndT03 - b11PointReduction);
+      const permOnlyCrowding = rawCrowding * (1 - permRelief);
+      const totalRelief = rawCrowding > 1e-6 ? Math.min(capRate, 1 - (appliedCrowding / rawCrowding)) : Math.min(capRate, permRelief + t03Rate + effB11Rate);
+
+      const tempHappy = (GameState.buffs || []).reduce((acc, bf) => acc + (bf.tempHappy || 0), 0);
       const happyBonus = tempHappy;
 
       const H = Math.max(0, Math.min(100, S + happyBonus - appliedCrowding));
+      // 일시 과밀 완화(B11/T03) 종료 후 예상 행복도 (영구 주차장 완화만 남았을 때의 H)
+      const hAfterTempReliefExpire = Math.max(0, Math.min(100, S + happyBonus - permOnlyCrowding));
 
       let incomeMult = 1.00;
       if (H < 20) incomeMult = 0.60;
@@ -3015,7 +3249,9 @@
       else incomeMult = 1.15;
 
       return {
-        S, baseC, parkingCapBonus, C, rawCrowding, permRelief, totalRelief, appliedCrowding, happyBonus, H, incomeMult,
+        pop, S, baseC, parkingCapBonus, C, rawCrowding, permRelief, totalRelief,
+        appliedCrowding, permOnlyCrowding, tempReliefRemainingSec, hAfterTempReliefExpire,
+        happyBonus, H, incomeMult,
         resBuildAllowed: H >= 20
       };
     }
@@ -3119,7 +3355,10 @@
       return totalDt > 0 ? weightedSum / totalDt : computeHappinessMetrics().H;
     }
 
-    function getNextStrategyChangeCost() {
+    function getNextStrategyChangeCost(forDeckEdit = false) {
+      if (forDeckEdit && (GameState.freeDeckEditCredits || 0) > 0) {
+        return 0;
+      }
       const count = GameState.strategyChangesInPeriod || 0;
       const table = CONFIG.strategyChangeCosts;
       return table[Math.min(count, table.length - 1)];
@@ -3738,23 +3977,56 @@
       updateAllUI();
     }
 
-    // 13. 도시 성장(Lv.1~3), 15분 주기 정기 시찰, 조기 시찰 요청 시스템 (보강안 B-4 & B-5 반영)
+    // 13. 8단계 성장 시찰(passedInspectionStage 0~8) & 도시 레벨(Lv.1~3) 분리 시스템 (2절, 3절, 4절 완벽 반영)
+    function getInspectionRequirementsByStage(passedStage = GameState.passedInspectionStage || 0) {
+      const st = Math.max(0, Math.min(8, Math.round(Number(passedStage) || 0)));
+      const table = CONFIG.inspectionTargetsByStage || {};
+      if (st >= 8) {
+        return { ...(table.maintenance || { stageIndex: 9, label: 'Lv.3 최고 단계 유지 시찰 (8차 해금 완료)', targetPop: 680, minBasePop: 580, targetBaseGpm: 35.0, targetFacScore: 13, targetAvgH: 72, targetSecRate: 75, fallbackSec: 26 }) };
+      }
+      const nextStageIdx = st + 1;
+      return { ...(table[nextStageIdx] || table[1]) };
+    }
+
     function getInspectionRequirementsByCityLevel(cityLv) {
-      const table = CONFIG.inspectionTargetsByLevel || {};
-      if (cityLv <= 1) return { ...(table[1] || { label: 'Lv.1 → Lv.2 승급 심사', targetPop: 250, targetAvgH: 65, targetSecRate: 75, fallbackSec: 20 }) };
-      if (cityLv === 2) return { ...(table[2] || { label: 'Lv.2 → Lv.3 승급 심사', targetPop: 600, targetAvgH: 70, targetSecRate: 75, fallbackSec: 20 }) };
-      return { ...(table[3] || { label: 'Lv.3 최고 단계 유지 심사', targetPop: 600, targetAvgH: 70, targetSecRate: 75, fallbackSec: 20 }) };
+      const stageForLv = cityLv <= 1 ? 0 : cityLv === 2 ? 2 : 5;
+      return getInspectionRequirementsByStage(stageForLv);
     }
 
     function evaluateInspectionCheckitems() {
       const pop = getCurrentPopulation();
       const cityLv = GameState.cityLevel || 1;
-      // 구간 시작 시 고정된 목표 스냅샷이 있으면 우선 사용 (8.2절)
-      const req = (GameState.inspectionState && GameState.inspectionState.targetSnapshot)
-        ? GameState.inspectionState.targetSnapshot
-        : getInspectionRequirementsByCityLevel(cityLv);
+      const passedStage = Math.max(0, Math.min(8, Math.round(Number(GameState.passedInspectionStage) || 0)));
+      const isMaintenance = passedStage >= 8;
 
-      const devPassed = pop >= req.targetPop;
+      // 구간 시작 시 고정된 목표 스냅샷이 있으면 우선 사용 (4-1절: 플레이 중 시설 선택 때문에 목표가 바뀌지 않도록 보장)
+      const baseReq = getInspectionRequirementsByStage(passedStage);
+      const snap = (GameState.inspectionState && GameState.inspectionState.targetSnapshot)
+        ? GameState.inspectionState.targetSnapshot
+        : null;
+      const req = (snap && Number.isFinite(Number(snap.targetPop)))
+        ? { ...baseReq, ...snap }
+        : baseReq;
+
+      // 4-1절: 특정 시설 강제 없는 복수 발전 경로 평가 (일시 행사/버프를 제외한 순수 상시 기본 수입 합계 사용)
+      const inc = computeIncomeMetrics();
+      const permanentBaseComGpm = (inc.comBasePerMin || 0) + (inc.officeBasePerMin || 0);
+      const qStatus = getFacilityProgressionQuotaStatus();
+      const facScore = qStatus.totalLevelSum;
+
+      const minBasePop = req.minBasePop || Math.floor(req.targetPop * 0.85);
+      const targetBaseGpm = req.targetBaseGpm || 10.0;
+      const targetFacScore = req.targetFacScore || 1;
+
+      const pathAPassed = pop >= req.targetPop;
+      const pathBPassed = pop >= minBasePop && (permanentBaseComGpm + 1e-6 >= targetBaseGpm || facScore >= targetFacScore);
+      const devPassed = pathAPassed || pathBPassed;
+      const devPathText = pathAPassed
+        ? `주거 경로 충족 (${pop}/${req.targetPop}명)`
+        : pathBPassed
+        ? `복합 발전 경로 충족 (인구 ${pop}명 + 상시수입 ${permanentBaseComGpm.toFixed(1)}G/분·시설점수 ${facScore})`
+        : `인구 ${pop}/${req.targetPop}명 (또는 인구 ${minBasePop}명+상시수입 ${targetBaseGpm.toFixed(1)}G/분)`;
+
       const avgH = getTimeWeightedAverageH();
       const lifePassed = avgH >= req.targetAvgH;
 
@@ -3771,12 +4043,15 @@
       }
 
       const passedCount = (devPassed ? 1 : 0) + (lifePassed ? 1 : 0) + (secPassed ? 1 : 0);
-      const canPromote = cityLv < 3 && devPassed && (lifePassed || secPassed);
+      const canAdvanceStage = !isMaintenance && devPassed && (lifePassed || secPassed);
+      const nextStageNum = canAdvanceStage ? Math.min(8, passedStage + 1) : passedStage;
+      const nextCityLv = getProgressionStageRow(nextStageNum).cityLevel;
+      const canPromote = canAdvanceStage && nextCityLv > cityLv;
 
       const elapsedInPeriod = GameState.activeSeconds - (GameState.inspectionState.periodStartTime || 0);
       const earlyCheckReason =
-        cityLv >= 3
-          ? '도시 Lv.3에서는 정기 시찰만 진행됩니다'
+        isMaintenance
+          ? '8차 시찰 완료 후 유지 구간에서는 정기 시찰만 진행됩니다'
           : elapsedInPeriod < CONFIG.earlyInspectionMinElapsedSec
           ? `구간 5분 경과 필요 (남은 시간 ${formatMMSS(CONFIG.earlyInspectionMinElapsedSec - elapsedInPeriod)})`
           : passedCount < 3
@@ -3787,16 +4062,27 @@
 
       return {
         cityLv,
+        passedStage,
+        isMaintenance,
         req,
         pop,
         targetPop: req.targetPop,
-        targetAvgH: req.targetAvgH,
+        minBasePop,
+        targetBaseGpm,
+        targetFacScore,
+        permanentBaseComGpm,
+        facScore,
+        pathAPassed,
+        pathBPassed,
         devPassed,
+        devPathText,
+        targetAvgH: req.targetAvgH,
         avgH,
         lifePassed,
         secPassed,
         secDescText,
         passedCount,
+        canAdvanceStage,
         canPromote,
         elapsedInPeriod,
         canRequestEarly: earlyCheckReason === null,
@@ -3819,21 +4105,31 @@
         if (!Array.isArray(insp.evaluatedPeriodIds)) insp.evaluatedPeriodIds = [];
         if (!Array.isArray(insp.rewardGrantedPeriodIds)) insp.rewardGrantedPeriodIds = [];
 
-        // 동일 회차 중복 평가·보상 방지 (8.3절)
+        // 동일 회차 중복 평가·보상 방지 (2절 & 8.3절)
         if (insp.evaluatedPeriodIds.includes(currentPeriodId)) {
           openInspectionModal(res, true, null);
           return;
         }
         insp.evaluatedPeriodIds.push(currentPeriodId);
 
-        // TIME-04: 시찰 시점에 진행 중인 사건이 있다면 현 회차 총 사건 수에는 포함하지 않고 다음 회차로 이월(또는 예고 상태 유지)하되 시찰 시간 동안 정지됨을 명시
         const prevLv = GameState.cityLevel || 1;
+        const prevStage = Math.max(0, Math.min(8, Math.round(Number(GameState.passedInspectionStage) || 0)));
+        let stageAdvancedNow = false;
         let promotedNow = false;
-        if (res.canPromote && GameState.cityLevel < 3) {
-          GameState.cityLevel += 1;
-          promotedNow = true;
+
+        // 2절: 통과 1회당 최대 1차수 증가, 도시 레벨은 해당 차수 행에 동기화 (절대 하락하지 않음)
+        if (res.canAdvanceStage && prevStage < 8) {
+          GameState.passedInspectionStage = prevStage + 1;
+          stageAdvancedNow = true;
+          const newRow = getProgressionStageRow(GameState.passedInspectionStage);
+          if (newRow.cityLevel > prevLv) {
+            GameState.cityLevel = newRow.cityLevel;
+            promotedNow = true;
+          }
         }
 
+        const afterStage = GameState.passedInspectionStage || 0;
+        const afterRow = getProgressionStageRow(afterStage);
         insp.inspectionCount = (insp.inspectionCount || 0) + 1;
 
         if (res.passedCount === 3) {
@@ -3842,29 +4138,42 @@
             GameState.gold += bonusG;
             insp.rewardGrantedPeriodIds.push(currentPeriodId);
           }
+          const stageLabel = stageAdvancedNow ? `${afterStage}차 통과` : '유지 통과';
           const gradeStr = isEarlyRequest
-            ? `조기 시찰 우수 (+${bonusG}G·돈까스!)`
-            : `우수 (+${bonusG}G·돈까스 세트!)`;
+            ? `조기 시찰 우수 · ${stageLabel} (+${bonusG}G·돈까스!)`
+            : `우수 · ${stageLabel} (+${bonusG}G·돈까스 세트!)`;
           insp.lastEvaluatedGrade = gradeStr;
           insp.lastGrade = gradeStr;
           insp.currentSalaryStatus = '특식 보너스 (+20%)';
           insp.salaryMultiplier = 1.20;
           insp.salaryEffectRemainingSec = 180;
           SoundFX.play('clear');
-          triggerRoneReaction('INSPECTION_GOOD', `야호!! 시찰 [우수] 달성으로 +${bonusG}G와 어린이 돈까스 세트 획득!!${promotedNow ? ` 도시가 Lv.${GameState.cityLevel}로 승급했어요!!` : ''}`, 'FACILITY_ZONE_SUCCESS', true);
+          triggerRoneReaction(
+            'INSPECTION_GOOD',
+            `야호!! 시찰 [우수] 달성으로 +${bonusG}G와 어린이 돈까스 세트 획득!! ${stageAdvancedNow ? `[${afterRow.summary}] 권한이 열렸어요!!` : ''}`,
+            'FACILITY_ZONE_SUCCESS',
+            true
+          );
         } else if (res.passedCount === 2) {
-          const gradeStr = res.devPassed ? '보통 (승급 승인)' : '보통 (개발 미달·승급 보류)';
+          const gradeStr = res.devPassed
+            ? `보통 (${stageAdvancedNow ? `${afterStage}차 시찰 통과 승인` : '유지 시찰 통과'})`
+            : '보통 (발전 기준 미달 · 차수 동결)';
           insp.lastEvaluatedGrade = gradeStr;
           insp.lastGrade = gradeStr;
           insp.currentSalaryStatus = '정상 봉급';
           insp.salaryMultiplier = 1.00;
           insp.salaryEffectRemainingSec = 0;
           SoundFX.play('card');
-          if (promotedNow) {
-            triggerRoneReaction('FACILITY_UNLOCK', `시찰 통과! 도시가 Lv.${GameState.cityLevel}로 승급하여 시설 Lv.${GameState.cityLevel} 강화 권한이 열렸어요!`, 'FACILITY_ZONE_SUCCESS', true);
+          if (stageAdvancedNow) {
+            triggerRoneReaction(
+              'FACILITY_UNLOCK',
+              `${afterStage}차 시찰 통과! [${afterRow.summary}] 권한이 해금되었어요!`,
+              'FACILITY_ZONE_SUCCESS',
+              true
+            );
           }
         } else {
-          const gradeStr = '미달 (감봉·돈까스 취소)';
+          const gradeStr = `미달 (${prevStage < 8 ? `${prevStage + 1}차 재도전` : '유지 미달'} · 감봉)`;
           insp.lastEvaluatedGrade = gradeStr;
           insp.lastGrade = gradeStr;
           insp.currentSalaryStatus = '감봉 페널티 (-10%)';
@@ -3877,7 +4186,7 @@
         insp.periodIndex += 1;
         insp.periodStartTime = Math.floor(GameState.activeSeconds);
         insp.nextInspectionTime = Math.floor(GameState.activeSeconds) + CONFIG.inspectionIntervalSec;
-        insp.targetSnapshot = getInspectionRequirementsByCityLevel(GameState.cityLevel);
+        insp.targetSnapshot = getInspectionRequirementsByStage(GameState.passedInspectionStage);
         GameState.strategyChangesInPeriod = 0;
 
         GameState.eventState.majorEventsInPeriod = 0;
@@ -3888,7 +4197,17 @@
         saveGameToStorage();
         updateAllUI();
         document.getElementById('modalCityLevelUp').classList.add('hidden');
-        const finalReportObj = { prevLv, newLv: GameState.cityLevel, promotedNow, gradeText: insp.lastEvaluatedGrade, passedCount: res.passedCount, isEarlyRequest };
+        const finalReportObj = {
+          prevLv,
+          newLv: GameState.cityLevel,
+          prevStage,
+          newStage: GameState.passedInspectionStage,
+          stageAdvancedNow,
+          promotedNow,
+          gradeText: insp.lastEvaluatedGrade,
+          passedCount: res.passedCount,
+          isEarlyRequest
+        };
         startInspectionCutsceneFlow(res, finalReportObj);
         return;
       }
@@ -4314,16 +4633,89 @@
       return cleaned.slice(0, CONFIG.deckSize);
     }
 
+    // 8-6절: 불러오기마다 백업을 새 저장으로 덮어써 원본이 사라지지 않도록 구버전 원문만 안전하게 백업 보존
     function backupRawSaveIfNeeded(rawObj) {
       try {
-        if (rawObj && typeof rawObj === 'object' && !localStorage.getItem(STORAGE_KEY_BACKUP_RAW)) {
+        if (!rawObj || typeof rawObj !== 'object') return;
+        const isLegacyPreV13 = !rawObj.progressionMigratedV13 || rawObj.version !== SCHEMA_VERSION;
+        const existingBackup = localStorage.getItem(STORAGE_KEY_BACKUP_RAW);
+        if (!existingBackup) {
           localStorage.setItem(STORAGE_KEY_BACKUP_RAW, JSON.stringify(rawObj));
+        } else if (isLegacyPreV13) {
+          try {
+            const parsedExisting = JSON.parse(existingBackup);
+            if (parsedExisting && parsedExisting.progressionMigratedV13) {
+              localStorage.setItem(STORAGE_KEY_BACKUP_RAW, JSON.stringify(rawObj));
+            }
+          } catch (e) {}
         }
       } catch (e) {}
     }
 
-    // 구버전(v1.1/v1.2 초기) 또는 외부 세이브 데이터를 현재 v1.2 Beta 규격으로 안전하게 마이그레이션
-    function migrateAndSanitizeSaveData(raw) {
+    // 8-3절: 이전 도시 레벨, 개방 수, Lv.2 이상 수, Lv.3 수를 모두 만족하는 가장 이른 차수(0~8차) 산정 알고리즘
+    function computeEarliestMatchingInspectionStage(oldCityLv, facilityLevelsMap) {
+      const lvMap = facilityLevelsMap || {};
+      let openedCount = 0;
+      let lv2PlusCount = 0;
+      let lv3Count = 0;
+      UNLOCKABLE_FACILITY_IDS.forEach(fid => {
+        const lv = Math.max(0, Math.min(3, Math.round(Number(lvMap[fid]) || 0)));
+        if (lv >= 1) openedCount += 1;
+        if (lv >= 2) lv2PlusCount += 1;
+        if (lv >= 3) lv3Count += 1;
+      });
+      for (let st = 0; st <= 8; st++) {
+        const row = CONFIG.progressionStageTable[st];
+        if (
+          row.cityLevel >= oldCityLv &&
+          row.maxOpened >= openedCount &&
+          row.maxLv2Plus >= lv2PlusCount &&
+          row.maxLv3 >= lv3Count
+        ) {
+          return { matchedStage: st, row, openedCount, lv2PlusCount, lv3Count };
+        }
+      }
+      return { matchedStage: 8, row: CONFIG.progressionStageTable[8], openedCount, lv2PlusCount, lv3Count };
+    }
+
+    // 8-6절: 변환 완료된 세이브 데이터의 불변조건(한도·숫자·ID·덱·시설·자원) 유효성 검증
+    function validateMigratedStateInvariants(stateObj) {
+      if (!stateObj || typeof stateObj !== 'object') return false;
+      if (!Number.isFinite(stateObj.gold) || stateObj.gold < 0) return false;
+      if (!Number.isFinite(stateObj.satisfaction) || stateObj.satisfaction < 0 || stateObj.satisfaction > 100) return false;
+      if (!Number.isFinite(stateObj.suppression) || stateObj.suppression < 0) return false;
+      if (!Number.isInteger(stateObj.passedInspectionStage) || stateObj.passedInspectionStage < 0 || stateObj.passedInspectionStage > 8) return false;
+      if (![1, 2, 3].includes(stateObj.cityLevel)) return false;
+      if (!Array.isArray(stateObj.activeDeck) || stateObj.activeDeck.length !== CONFIG.deckSize) return false;
+      for (const mId of CONFIG.mandatoryCardIds) {
+        if (!stateObj.activeDeck.includes(mId)) return false;
+      }
+      for (const fid of UNLOCKABLE_FACILITY_IDS) {
+        const lv = stateObj.facilityLevels?.[fid];
+        if (!Number.isInteger(lv) || lv < 0 || lv > 3) return false;
+      }
+      return true;
+    }
+
+    // 8절: 구버전(v1.1/v1.2/v1.3 이전) 또는 외부 세이브 데이터를 현재 v1.3 규격으로 메모리 복사본에서 안전하게 검증·변환
+    function migrateAndSanitizeSaveData(rawInput) {
+      if (!rawInput || typeof rawInput !== 'object' || Array.isArray(rawInput)) return null;
+
+      // 8-1절: 미래 버전 등 해석할 수 없는 상위 버전 저장은 원본을 보존하고 안내하며 덮어쓰지 않음
+      if (Number.isFinite(Number(rawInput.schemaNumeric)) && Number(rawInput.schemaNumeric) > SCHEMA_NUMERIC) {
+        showToast(`⚠️ 현재 앱(${APP_DISPLAY_VERSION})보다 상위 버전(Schema ${rawInput.schemaNumeric})의 저장 데이터입니다. 원본 보호를 위해 덮어쓰기를 중단했습니다.`, 'bg-rose-600 border-slate-900 text-white');
+        return null;
+      }
+
+      backupRawSaveIfNeeded(rawInput);
+
+      // 8-6절: 메모리 깊은 복사본에서 변환 수행
+      let raw;
+      try {
+        raw = JSON.parse(JSON.stringify(rawInput));
+      } catch (e) {
+        return null;
+      }
       if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
       backupRawSaveIfNeeded(raw);
 
@@ -4623,6 +5015,108 @@
         if (cleanSeries.length > 0) migrated.happinessTimeSeries = cleanSeries;
       }
 
+      // =====================================================================
+      // 8-1 ~ 8-6절: v1.3 8단계 시찰·시설 한도·외형 보존·운영 기간 이관 처리
+      // 이미 v1.3으로 변환된 저장(raw.progressionMigratedV13 === true)은 재변환·보상 중복 지급을 하지 않음
+      // =====================================================================
+      const isAlreadyMigratedV13 = Boolean(raw.progressionMigratedV13 && raw.version === SCHEMA_VERSION);
+      const migPop = migrated.buildings.reduce((acc, b) => acc + (b.active === false ? 0 : (b.populationGranted || 0)), 0);
+      if (migPop > migrated.highestPopulation) migrated.highestPopulation = migPop;
+
+      if (isAlreadyMigratedV13) {
+        const minMatch = computeEarliestMatchingInspectionStage(cityLv, migrated.facilityLevels);
+        const savedStage = Math.max(minMatch.matchedStage, Math.min(8, Math.round(toFiniteNumber(raw.passedInspectionStage, minMatch.matchedStage, 0, 8))));
+        const stageRow = getProgressionStageRow(savedStage);
+        migrated.passedInspectionStage = savedStage;
+        migrated.cityLevel = Math.max(cityLv, stageRow.cityLevel);
+        migrated.visualStageFloor = Math.round(toFiniteNumber(raw.visualStageFloor, migrated.cityLevel, 1, 3));
+        migrated.freeDeckEditCredits = Math.round(toFiniteNumber(raw.freeDeckEditCredits, 0, 0, 10));
+        migrated.progressionMigratedV13 = true;
+        migrated.migrationNotice = raw.migrationNotice || null;
+
+        migrated.facilityStageMeta = {};
+        UNLOCKABLE_FACILITY_IDS.forEach(fid => {
+          const curLv = migrated.facilityLevels[fid] || 0;
+          const rawMeta = raw.facilityStageMeta && raw.facilityStageMeta[fid];
+          if (curLv <= 0) {
+            migrated.facilityStageMeta[fid] = { openedAtStage: null, lastUpgradedAtStage: null };
+          } else {
+            migrated.facilityStageMeta[fid] = {
+              openedAtStage: Number.isFinite(Number(rawMeta?.openedAtStage)) ? Number(rawMeta.openedAtStage) : Math.max(-1, savedStage - 1),
+              lastUpgradedAtStage: Number.isFinite(Number(rawMeta?.lastUpgradedAtStage)) ? Number(rawMeta.lastUpgradedAtStage) : Math.max(-1, savedStage - 1)
+            };
+          }
+        });
+        migrated.inspectionState.targetSnapshot = raw.inspectionState?.targetSnapshot && Number.isFinite(Number(raw.inspectionState.targetSnapshot.targetPop))
+          ? { ...getInspectionRequirementsByStage(savedStage), ...raw.inspectionState.targetSnapshot }
+          : getInspectionRequirementsByStage(savedStage);
+      } else {
+        // 구버전 세이브 1회 이관 실행:
+        // 1) 변환 전 기존 getVisualCityStage() 결과를 계산해 visualStageFloor로 보존 (인구 500 이상이어서 이미 3단계 배경을 본 경우 등)
+        const oldPopStage = migPop >= 500 ? 3 : migPop >= 220 ? 2 : 1;
+        const preservedVisualFloor = Math.min(3, Math.max(cityLv, oldPopStage));
+
+        // 2) 기존 도시 레벨, 개방 수, Lv.2+ 수, Lv.3 수를 모두 만족하는 가장 이른 차수(0~8차) 배치
+        const matchInfo = computeEarliestMatchingInspectionStage(cityLv, migrated.facilityLevels);
+        const placedStage = matchInfo.matchedStage;
+        const placedRow = matchInfo.row;
+        const newCityLv = Math.max(cityLv, placedRow.cityLevel);
+
+        migrated.passedInspectionStage = placedStage;
+        migrated.cityLevel = newCityLv;
+        migrated.visualStageFloor = preservedVisualFloor;
+        migrated.progressionMigratedV13 = true;
+
+        // 3) 기존 시설은 운영 기간을 충족한 것으로 인정 (이관 직후 잔여 한도가 있으면 즉시 승급 가능하도록 placedStage - 1 부여)
+        migrated.facilityStageMeta = {};
+        UNLOCKABLE_FACILITY_IDS.forEach(fid => {
+          const curLv = migrated.facilityLevels[fid] || 0;
+          if (curLv > 0) {
+            migrated.facilityStageMeta[fid] = {
+              openedAtStage: Math.max(-1, placedStage - 1),
+              lastUpgradedAtStage: Math.max(-1, placedStage - 1)
+            };
+          } else {
+            migrated.facilityStageMeta[fid] = { openedAtStage: null, lastUpgradedAtStage: null };
+          }
+        });
+
+        // 4) 새 기본 과밀 카드(B11 임시 교통 대책)를 기존 덱에 강제 삽입하지 않되, 1회 무료 편성 기회(freeDeckEditCredits = 1) 제공 (기존 strategyChangesInPeriod 유지)
+        migrated.freeDeckEditCredits = Math.max(1, Math.round(toFiniteNumber(raw.freeDeckEditCredits, 1, 0, 5)));
+
+        // 5) 진행 중 시찰 구간 안전 1회 초기화 (이관으로 실패·감봉 판정을 발생시키지 않으며, 이미 받은 특식 버프는 남은 시간 유지, 감봉 페널티는 해제)
+        migrated.happinessTimeSeries = [{ dt: 1, h: Math.max(70, migrated.satisfaction || 70) }];
+        migrated.inspectionState.periodStartTime = Math.floor(migrated.activeSeconds);
+        migrated.inspectionState.nextInspectionTime = Math.floor(migrated.activeSeconds) + CONFIG.inspectionIntervalSec;
+        migrated.inspectionState.targetSnapshot = getInspectionRequirementsByStage(placedStage);
+        migrated.inspectionState.legacyInspectionCount = migrated.inspectionState.inspectionCount || 0;
+        if (migrated.inspectionState.salaryMultiplier < 1.0) {
+          migrated.inspectionState.salaryMultiplier = 1.0;
+          migrated.inspectionState.salaryEffectRemainingSec = 0;
+          migrated.inspectionState.currentSalaryStatus = '정상 봉급';
+        }
+
+        // 6) 이관 기록 및 사용자 안내 메시지 저장 (과거 차수 일회성 보상 소급 미지급 명시)
+        const stageNames = { 1: 'START(1단계)', 2: 'GROWTH(2단계)', 3: 'DEVELOPED(3단계)' };
+        migrated.migrationNotice = {
+          migratedAtISO: new Date().toISOString(),
+          fromVersion: raw.version || 'legacy',
+          oldCityLv: cityLv,
+          newCityLv,
+          placedStage,
+          openedCount: matchInfo.openedCount,
+          lv2PlusCount: matchInfo.lv2PlusCount,
+          lv3Count: matchInfo.lv3Count,
+          visualStageFloor: preservedVisualFloor,
+          retroactiveRewardsSkipped: true,
+          message: `성장 단계 개편에 맞춰 저장 데이터를 변환했습니다. 보유 자원과 건물은 유지되며 다음 시찰부터 새 기준이 적용됩니다. (배치 차수: ${placedStage}차 · 도시 Lv.${newCityLv} · 외형 보존: ${stageNames[preservedVisualFloor]} · 덱 1회 무료 편성권 지급)`
+        };
+      }
+
+      if (!validateMigratedStateInvariants(migrated)) {
+        return null;
+      }
+
       return migrated;
     }
 
@@ -4640,7 +5134,13 @@
       saveGameToStorage();
       renderDemolishBanner();
       updateAllUI();
-      showToast(toastMessage, 'bg-[#dff2b0] border-[#3c4d24] text-lime-950');
+      if (GameState.migrationNotice && GameState.migrationNotice.message && !GameState.migrationNotice.toastShown) {
+        GameState.migrationNotice.toastShown = true;
+        saveGameToStorage();
+        showToast(`🛡️ ${GameState.migrationNotice.message}`, 'bg-amber-200 border-slate-900 text-amber-950');
+      } else {
+        showToast(toastMessage, 'bg-[#dff2b0] border-[#3c4d24] text-lime-950');
+      }
       return true;
     }
 
@@ -4736,13 +5236,15 @@
           savedTimeStr = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
         } catch (e) {}
       }
+      const stg = Number.isFinite(Number(stateObj.passedInspectionStage)) ? Number(stateObj.passedInspectionStage) : 0;
       return {
         cityLv,
+        stg,
         pop,
         gold,
         playMin,
         savedTimeStr,
-        summaryLine: `도시 Lv.${cityLv} · 인구 ${pop}명 · 보유 ${gold}G · 운영 ${playMin}분`
+        summaryLine: `도시 Lv.${cityLv} (${stg}/8차) · 인구 ${pop}명 · 보유 ${gold}G · 운영 ${playMin}분`
       };
     }
 
@@ -4771,6 +5273,15 @@
       renderSaveSlotsGrid();
       const codeArea = document.getElementById('saveCodeTextarea');
       if (codeArea) codeArea.value = '';
+      const migBox = document.getElementById('saveMigrationNoticeBox');
+      if (migBox) {
+        if (GameState.migrationNotice && GameState.migrationNotice.message) {
+          migBox.classList.remove('hidden');
+          migBox.textContent = `🛡️ ${GameState.migrationNotice.message}`;
+        } else {
+          migBox.classList.add('hidden');
+        }
+      }
       document.getElementById('modalSaveLoad').classList.remove('hidden');
     }
 
@@ -5121,11 +5632,26 @@
         if (def.zone === 'res') {
           const hasPopBoost = hasActiveToken('res_pop_boost_30');
           const effPop = hasPopBoost ? Math.floor((def.pop || 0) * 1.30) : (def.pop || 0);
-          lines.push(`• <strong>인구 증가:</strong> +${effPop}명${hasPopBoost ? ` <span class="text-lime-700">(입주 지원 토큰 +30% 반영, 기본 +${def.pop}명)</span>` : ''}`);
-          lines.push(`• <strong>주거 유지비:</strong> −${(def.upkeepPerMinute || 0).toFixed(2)}G/분 지속 지출`);
           const hasZeroS = (def.sDelta || 0) < 0 && hasActiveToken('res_s_zero');
           const effS = hasZeroS ? 0 : (def.sDelta || 0);
+          const afterPop = hMetrics.pop + effPop;
+          const afterSat = Math.max(0, Math.min(100, hMetrics.S + effS));
+          const afterHMetrics = computeHappinessMetrics(afterPop, null, afterSat);
+
+          lines.push(`• <strong>인구 증가:</strong> +${effPop}명${hasPopBoost ? ` <span class="text-lime-700">(입주 지원 토큰 +30% 반영, 기본 +${def.pop}명)</span>` : ''}`);
+          lines.push(`• <strong>주거 유지비:</strong> −${(def.upkeepPerMinute || 0).toFixed(2)}G/분 지속 지출`);
           lines.push(`• <strong>기초 만족도(S) 변화:</strong> ${effS >= 0 ? `+${effS}` : effS}${hasZeroS ? ` <span class="text-lime-700">(생활환경 개선 토큰으로 감소 0 방지됨, 기본 ${def.sDelta})</span>` : ''}`);
+          lines.push(`<div class="mt-1.5 p-2.5 rounded-xl bg-white border border-lime-700 text-xs space-y-1">
+            <div class="font-trickcal text-lime-950">📊 5-3절: 설치 후 인구 · 수용량 · 과밀 감점 예상치</div>
+            <div>• <strong>예상 인구 / 수용 기준(C):</strong> ${hMetrics.pop}명 → <strong>${afterPop}명</strong> <span class="text-slate-600">(현재 과밀 기준 C = ${hMetrics.C}명)</span></div>
+            <div>• <strong>예상 과밀 감점 변화:</strong> 현재 −${hMetrics.appliedCrowding.toFixed(1)}점 → 설치 후 <strong class="${afterHMetrics.appliedCrowding > hMetrics.appliedCrowding ? 'text-rose-600' : 'text-sky-800'}">−${afterHMetrics.appliedCrowding.toFixed(1)}점</strong> (완화 ${Math.round(afterHMetrics.totalRelief * 100)}% 반영)</div>
+            <div>• <strong>설치 후 예상 시민 행복도(H):</strong> 현재 ${hMetrics.H.toFixed(1)} → <strong>${afterHMetrics.H.toFixed(1)}</strong></div>
+            ${afterPop > hMetrics.C
+              ? `<div class="text-[11px] text-amber-900 bg-amber-50 p-1.5 rounded border border-amber-300">💡 <strong>과밀 대응 안내:</strong> 수용 기준(${hMetrics.C}명) 초과분은 ① 주거 확장 속도 조절, ② 구획 관리에서 일반 주거 구획 확대(+4명/칸), ③ [임시 교통 대책·출퇴근 분산제] 카드, ④ [중앙 환승주차장] 개방·승급 중 원하는 경로로 관리할 수 있습니다.</div>`
+              : afterPop >= hMetrics.C * 0.85
+              ? `<div class="text-[11px] text-sky-900 bg-sky-50 p-1.5 rounded border border-sky-300">ℹ️ <strong>수용량 접근 안내:</strong> 설치 후 인구가 수용 기준(${hMetrics.C}명)의 ${Math.round((afterPop / hMetrics.C) * 100)}%에 도달합니다.</div>`
+              : ''}
+          </div>`);
         } else if (def.zone === 'com') {
           const baseGpm = def.gpm || 0;
           const hiBonus = def.highHappyBonusGpm || 0;
@@ -5470,19 +5996,24 @@
         }
 
         const curLv = getFacilityLevel(fac.id);
-        const nextCost = curLv < 3 ? fac.costsByLv[curLv] : null;
-        const canUpgradeByCityLv = curLv < cityLv && curLv < 3;
-        const canAfford = canUpgradeByCityLv && nextCost !== null && GameState.gold + 1e-6 >= nextCost;
+        const elig = checkFacilityActionEligibility(fac.id);
+        const canAfford = elig.canExecute;
 
         let statusLine = '';
         if (curLv === 0) {
-          statusLine = canAfford ? (isMob ? `🔓 ${nextCost}G` : `🔓 개방가능`) : `🔒 미개방`;
+          statusLine = canAfford
+            ? (isMob ? `🔓 ${elig.costG}G` : `🔓 개방가능`)
+            : (!elig.quotaOk ? `🔒 개방한도` : `🔒 미개방`);
         } else if (curLv >= 3) {
           statusLine = `★ Lv.3 완료`;
-        } else if (curLv < cityLv) {
-          statusLine = canAfford ? (isMob ? `⬆️ Lv.${curLv + 1}` : `⬆️ Lv.${curLv + 1} 가능`) : `Lv.${curLv} 가동중`;
+        } else if (canAfford) {
+          statusLine = isMob ? `⬆️ Lv.${curLv + 1}` : `⬆️ Lv.${curLv + 1} 가능`;
+        } else if (!elig.periodOk) {
+          statusLine = isMob ? `Lv.${curLv}·운영중` : `Lv.${curLv} (차기승급)`;
+        } else if (!elig.quotaOk || !elig.cityLvOk) {
+          statusLine = isMob ? `Lv.${curLv} 유지` : `Lv.${curLv} (한도대기)`;
         } else {
-          statusLine = isMob ? `Lv.${curLv} 유지` : `Lv.${curLv} (상한)`;
+          statusLine = `Lv.${curLv} 가동중`;
         }
 
         const shortNameMap = {
@@ -5523,8 +6054,13 @@
       const cityLv = GameState.cityLevel || 1;
       const resDedBonus = getResidentialDedicatedBonusSpace();
 
-      const cityTierNames = { 1: '도시 Lv.1', 2: '도시 Lv.2', 3: '도시 Lv.3' };
-      document.getElementById('cityTierBadge').textContent = cityTierNames[cityLv] || `도시 Lv.${cityLv}`;
+      const qHud = getFacilityProgressionQuotaStatus();
+      const stageTag = qHud.allLv3Built
+        ? `도시 Lv.${cityLv} ★완공`
+        : qHud.allQuotaUnlocked
+        ? `도시 Lv.${cityLv} · 8차완료`
+        : `도시 Lv.${cityLv} · ${qHud.stage}/8차`;
+      document.getElementById('cityTierBadge').textContent = stageTag;
       document.getElementById('highestPopLabel').textContent = `최고 ${formatCompactInt(GameState.highestPopulation)}명`;
 
       document.getElementById('statPop').textContent = formatCompactInt(pop);
@@ -5602,7 +6138,11 @@
       });
       GameState.buffs.forEach(bf => {
         const def = CARD_DEFINITIONS[bf.id];
-        activeLines.push(`• [버프] ${bf.name || (def ? def.name : bf.id)} (${Math.ceil(bf.remainingSec)}초)`);
+        if (bf.tempCrowdingRelief > 0) {
+          activeLines.push(`• [과밀완화] ${bf.name || (def ? def.name : bf.id)} (${Math.ceil(bf.remainingSec)}초 남음 · 종료 후 예상 H=${Math.round(hMetrics.hAfterTempReliefExpire)})`);
+        } else {
+          activeLines.push(`• [버프] ${bf.name || (def ? def.name : bf.id)} (${Math.ceil(bf.remainingSec)}초)`);
+        }
       });
       if (activeLines.length > 0) {
         buffsBox.classList.remove('hidden');
@@ -5686,13 +6226,16 @@
 
       const inspCheck = evaluateInspectionCheckitems();
       document.getElementById('hudInspectHeaderTitle').textContent =
-        cityLv < 3 ? `🎖️ 시찰 (Lv.${cityLv}→${cityLv + 1})` : `🎖️ 시찰 (Lv.3 유지)`;
+        !inspCheck.isMaintenance ? `🎖️ ${inspCheck.passedStage + 1}차 성장 시찰` : `🎖️ 시찰 (8차완료·유지)`;
       const salaryStateText = GameState.inspectionState.currentSalaryStatus || '정상 봉급';
       document.getElementById('hudSalaryState').textContent = salaryStateText.split(' ')[0];
       document.getElementById('hudInspectionMiniList').innerHTML = `
-        <div class="flex justify-between"><span>1. 개발(필수·인구 ${inspCheck.targetPop})</span><strong class="${inspCheck.devPassed ? 'text-lime-700' : 'text-rose-600'}">${inspCheck.pop}명 ${inspCheck.devPassed ? '✔' : '✘'}</strong></div>
+        <div class="flex justify-between"><span>1. 발전(인구 ${inspCheck.targetPop}/복합)</span><strong class="${inspCheck.devPassed ? 'text-lime-700' : 'text-rose-600'}">${inspCheck.pop}명 ${inspCheck.devPassed ? '✔' : '✘'}</strong></div>
         <div class="flex justify-between"><span>2. 생활(3분 H>=${inspCheck.targetAvgH})</span><strong class="${inspCheck.lifePassed ? 'text-lime-700' : 'text-rose-600'}">${Math.round(inspCheck.avgH)} ${inspCheck.lifePassed ? '✔' : '✘'}</strong></div>
         <div class="flex justify-between"><span>3. 치안(대응>=75%)</span><strong class="${inspCheck.secPassed ? 'text-lime-700' : 'text-rose-600'}">${inspCheck.secPassed ? '충족 ✔' : '미달 ✘'}</strong></div>
+        <div class="flex justify-between pt-0.5 border-t border-slate-300 text-[9.5px] text-slate-700">
+          <span>개방 ${qHud.openedCount}/${qHud.row.maxOpened} · Lv2+ ${qHud.lv2PlusCount}/${qHud.row.maxLv2Plus} · Lv3 ${qHud.lv3Count}/${qHud.row.maxLv3}</span>
+        </div>
       `;
 
       // (골드 및 분당 수급량은 상단 블록에서 원자적으로 동기화 완료)
@@ -5867,6 +6410,30 @@
         } else {
           interactiveBox.innerHTML = `<div class="text-slate-600">시설 개방(Lv.1) 후 상업·업무 수입을 2배로 증폭하는 <strong>[특별 영업 행사]</strong> 실행 버튼을 사용할 수 있습니다.</div>`;
         }
+      } else if (fac.id === 'fac_parking') {
+        const curH = computeHappinessMetrics();
+        const nextParkingLv = Math.min(3, curLv + 1);
+        const nextH = computeHappinessMetrics(null, nextParkingLv, null);
+        interactiveBox.innerHTML = `
+          <div class="bg-sky-50 border-2 border-sky-700 rounded-xl p-3 space-y-1.5 text-xs">
+            <div class="font-trickcal text-sky-950">🅿️ 5-3절: 현재 도시(인구 ${curH.pop}명) 기준 주차장 ${curLv === 0 ? '개방(Lv.1)' : curLv < 3 ? `승급(Lv.${nextParkingLv})` : 'Lv.3 유지'} 전후 과밀 비교</div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+              <div class="bg-white border border-sky-300 rounded-lg p-2">
+                <div class="text-[10px] text-slate-500">과밀 수용 기준(C)</div>
+                <div class="font-extrabold text-slate-900">${curH.C}명 → <strong class="text-sky-800">${nextH.C}명</strong></div>
+              </div>
+              <div class="bg-white border border-sky-300 rounded-lg p-2">
+                <div class="text-[10px] text-slate-500">실제 적용 과밀 감점</div>
+                <div class="font-extrabold text-slate-900">−${curH.appliedCrowding.toFixed(1)}점 → <strong class="text-emerald-700">−${nextH.appliedCrowding.toFixed(1)}점</strong></div>
+              </div>
+              <div class="bg-white border border-sky-300 rounded-lg p-2">
+                <div class="text-[10px] text-slate-500">예상 시민 행복도(H)</div>
+                <div class="font-extrabold text-slate-900">${curH.H.toFixed(1)} → <strong class="text-lime-800">${nextH.H.toFixed(1)}</strong></div>
+              </div>
+            </div>
+            <div class="text-[11px] text-slate-600 pt-0.5">※ 주차장 미개방 상태でも 기본 카드 [임시 교통 대책]이나 구획 배분 조정을 통해 일시적으로 과밀을 완화할 수 있습니다.</div>
+          </div>
+        `;
       } else {
         if (curLv > 0) {
           interactiveBox.innerHTML = `<div class="text-lime-900">별도 수동 조작 없이 도시 전체에 상시 자동 적용되는 고유 기능 시설입니다.</div>`;
@@ -5931,20 +6498,29 @@
           .join('');
       }
 
-      // 5. 비용과 필요한 조건 & 6. 실행 버튼
+      // 5. 비용·누적 한도·운영 기간 조건 & 6. 실행 버튼 (2절 & 3절 완벽 반영)
+      const elig = checkFacilityActionEligibility(fac.id);
+      const q = elig.quotaStatus || getFacilityProgressionQuotaStatus();
+      const quotaSummaryHtml = `
+        <div class="mb-2 p-2.5 rounded-xl bg-[#eef8d2] border border-[#3c4d24] text-xs space-y-0.5 tabular-nums">
+          <div class="font-trickcal text-lime-950">📊 현재 시찰 차수(${q.stage}/8차 · 도시 Lv.${q.cityLevel}) 시설 누적 한도 현황</div>
+          <div>• 시설 개방: <strong>${q.openedCount}/${q.row.maxOpened}곳</strong> ${q.row.maxOpened < 5 ? `(다음 시찰 통과 시 +1)` : `(5곳 전체 개방 해금)`}</div>
+          <div>• Lv.2 이상 시설: <strong>${q.lv2PlusCount}/${q.row.maxLv2Plus}곳</strong> (승급 가능 <strong>${q.remLv2Plus}곳</strong>)</div>
+          <div>• Lv.3 시설: <strong>${q.lv3Count}/${q.row.maxLv3}곳</strong> (승급 가능 <strong>${q.remLv3}곳</strong>)</div>
+        </div>
+      `;
+
       if (curLv >= 3) {
         statusBadge.textContent = 'Lv.3 최대 레벨 달성';
         statusBadge.className = 'inline-block text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-lime-600 text-white border border-slate-900';
-        reqBox.innerHTML = `<div class="text-lime-800">✔ 최고 단계(Lv.3)까지 모든 강화가 완료된 시설입니다!</div>`;
+        reqBox.innerHTML = quotaSummaryHtml + `<div class="text-lime-800">✔ 최고 단계(Lv.3)까지 모든 강화가 완료된 시설입니다!</div>`;
         confirmBtn.disabled = true;
         confirmBtn.textContent = '✔ Lv.3 최대 레벨 완료';
         confirmBtn.className = 'min-h-[44px] px-5 py-2 rounded-xl bg-slate-300 border-3 border-slate-500 text-slate-500 font-trickcal text-sm cursor-not-allowed whitespace-nowrap';
       } else {
         const targetLv = curLv + 1;
         const costG = fac.costsByLv[curLv];
-        const cityLvOk = cityLv >= targetLv;
-        const goldOk = GameState.gold + 1e-6 >= costG;
-        const canExec = cityLvOk && goldOk;
+        const canExec = elig.canExecute;
 
         statusBadge.textContent = curLv === 0 ? '미개방 시설 (Lv.0)' : `현재 Lv.${curLv} 가동중`;
         statusBadge.className = curLv === 0
@@ -5952,27 +6528,48 @@
           : 'inline-block text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-lime-600 text-white border border-slate-900';
 
         const missingReasons = [];
-        if (!cityLvOk) missingReasons.push(`도시 Lv.${targetLv} 승급 필요 (현재 도시 Lv.${cityLv})`);
-        if (!goldOk) missingReasons.push(`골드 ${Math.ceil(costG - GameState.gold)}G 부족 (필요 ${costG}G / 보유 ${Math.floor(GameState.gold)}G)`);
+        if (!elig.periodOk && elig.periodReason) missingReasons.push(elig.periodReason);
+        if (!elig.quotaOk && elig.quotaReason) missingReasons.push(elig.quotaReason);
+        if (!elig.cityLvOk) missingReasons.push(`도시 Lv.${targetLv} 승급 필요 (현재 도시 Lv.${cityLv})`);
+        if (!elig.goldOk) missingReasons.push(`골드 ${Math.ceil(costG - GameState.gold)}G 부족 (필요 ${costG}G / 보유 ${Math.floor(GameState.gold)}G)`);
 
-        reqBox.innerHTML = `
+        const quotaLineLabel = targetLv === 1
+          ? `시설 개방 누적 한도 (${q.openedCount}/${q.row.maxOpened}곳)`
+          : targetLv === 2
+          ? `Lv.2 이상 누적 한도 (${q.lv2PlusCount}/${q.row.maxLv2Plus}곳 · 승급 가능 ${q.remLv2Plus}곳)`
+          : `Lv.3 시설 누적 한도 (${q.lv3Count}/${q.row.maxLv3}곳 · 승급 가능 ${q.remLv3}곳)`;
+
+        reqBox.innerHTML = quotaSummaryHtml + `
+          <div class="flex justify-between">
+            <span>• 시찰 한도 조건: <strong>${quotaLineLabel}</strong></span>
+            <strong class="${elig.quotaOk ? 'text-lime-700' : 'text-rose-600'}">${elig.quotaOk ? '여유 있음 ✔' : '한도 도달 ✘'}</strong>
+          </div>
+          ${curLv > 0 ? `
+          <div class="flex justify-between">
+            <span>• 최소 1구간 운영 조건: <strong>개방/승급 후 시찰 1회 이상 통과</strong></span>
+            <strong class="${elig.periodOk ? 'text-lime-700' : 'text-rose-600'}">${elig.periodOk ? '충족 ✔' : '이번 구간 변경됨 · 차기 시찰 필요 ✘'}</strong>
+          </div>` : ''}
           <div class="flex justify-between">
             <span>• 요구 도시 레벨: <strong>도시 Lv.${targetLv} 이상</strong></span>
-            <strong class="${cityLvOk ? 'text-lime-700' : 'text-rose-600'}">현재 도시 Lv.${cityLv} (${cityLvOk ? '충족 ✔' : '시찰 승급 필요 ✘'})</strong>
+            <strong class="${elig.cityLvOk ? 'text-lime-700' : 'text-rose-600'}">현재 도시 Lv.${cityLv} (${elig.cityLvOk ? '충족 ✔' : '시찰 승급 필요 ✘'})</strong>
           </div>
           <div class="flex justify-between">
             <span>• ${curLv === 0 ? '시설 개방 비용' : `Lv.${targetLv} 레벨업 비용`}: <strong>${costG}G</strong></span>
-            <strong class="${goldOk ? 'text-lime-700' : 'text-rose-600'}">보유 ${Math.floor(GameState.gold).toLocaleString()}G (${goldOk ? '충족 ✔' : '골드 부족 ✘'})</strong>
+            <strong class="${elig.goldOk ? 'text-lime-700' : 'text-rose-600'}">보유 ${Math.floor(GameState.gold).toLocaleString()}G (${elig.goldOk ? '충족 ✔' : '골드 부족 ✘'})</strong>
           </div>
           ${
             missingReasons.length > 0
-              ? `<div class="mt-1 p-2 rounded-xl bg-rose-50 border border-rose-300 text-rose-700 text-xs">⚠️ <strong>부족한 조건:</strong> ${missingReasons.join(' / ')}</div>`
-              : `<div class="mt-1 p-2 rounded-xl bg-lime-50 border border-lime-400 text-lime-800 text-xs">✔ 모든 조건을 충족했습니다. 아래 버튼으로 즉시 실행할 수 있습니다.</div>`
+              ? `<div class="mt-1 p-2 rounded-xl bg-rose-50 border border-rose-300 text-rose-700 text-xs">⚠️ <strong>제한 사유:</strong> ${missingReasons.join(' / ')}</div>`
+              : `<div class="mt-1 p-2 rounded-xl bg-lime-50 border border-lime-400 text-lime-800 text-xs">✔ 한도·운영 기간·비용 조건을 모두 충족했습니다. 아래 버튼으로 즉시 실행할 수 있습니다.</div>`
           }
         `;
 
         const actionVerb = curLv === 0 ? `🔓 시설 개방 (${costG}G)` : `⬆️ Lv.${targetLv}로 레벨업 (${costG}G)`;
-        const disabledVerb = !cityLvOk
+        const disabledVerb = !elig.periodOk
+          ? `⏳ 다음 시찰 통과 후 승급 가능`
+          : !elig.quotaOk
+          ? `🔒 시찰 승급/개방 한도 대기`
+          : !elig.cityLvOk
           ? `🔒 도시 Lv.${targetLv} 승급 필요`
           : `🔒 골드 부족 (${costG}G 필요)`;
 
@@ -6170,39 +6767,61 @@
     }
 
     function executeUnlockOrUpgradeFacility() {
-      const fac = MAP_FACILITIES.find(f => f.id === RuntimeUI.selectedFacilityId);
-      if (!fac || !fac.isUnlockable) return;
-      const curLv = getFacilityLevel(fac.id);
-      if (curLv >= 3) return;
+      if (RuntimeUI.facilityActionLock) return false;
+      RuntimeUI.facilityActionLock = true;
+      try {
+        const fac = MAP_FACILITIES.find(f => f.id === RuntimeUI.selectedFacilityId);
+        if (!fac || !fac.isUnlockable) return false;
 
-      const targetLv = curLv + 1;
-      const cityLv = GameState.cityLevel || 1;
-      if (cityLv < targetLv) {
-        SoundFX.play('alert');
-        showToast(`⚠️ 도시 Lv.${targetLv} 이상이어야 이 시설을 Lv.${targetLv}(으)로 레벨업할 수 있습니다!`, 'bg-rose-600 border-slate-900 text-white');
-        return;
+        const elig = checkFacilityActionEligibility(fac.id);
+        if (!elig.canExecute) {
+          SoundFX.play('alert');
+          if (!elig.goldOk) {
+            triggerRoneReaction('NO_MONEY', `시설 발전에 필요한 예산(${elig.costG}G)이 부족해요!`, 'NO_MONEY_WARN', false);
+          }
+          showToast(`⚠️ 실행 불가: ${elig.primaryBlockReason || '조건 미충족'}`, 'bg-rose-600 border-slate-900 text-white');
+          openFacilityModal(fac.id);
+          return false;
+        }
+
+        const curLv = elig.curLv;
+        const targetLv = elig.targetLv;
+        const costG = elig.costG;
+        const curStage = Math.max(0, Math.min(8, Math.round(Number(GameState.passedInspectionStage) || 0)));
+
+        // 원자적 결제·레벨 변경·운영 기간 기록
+        GameState.gold = Math.max(0, GameState.gold - costG);
+        GameState.facilityLevels[fac.id] = targetLv;
+        if (!GameState.facilityStageMeta || typeof GameState.facilityStageMeta !== 'object') {
+          GameState.facilityStageMeta = {};
+        }
+        if (targetLv === 1) {
+          GameState.facilityStageMeta[fac.id] = {
+            openedAtStage: curStage,
+            lastUpgradedAtStage: curStage
+          };
+        } else {
+          const prevMeta = getFacilityStageMeta(fac.id);
+          GameState.facilityStageMeta[fac.id] = {
+            openedAtStage: prevMeta.openedAtStage !== null ? prevMeta.openedAtStage : Math.max(0, curStage - 1),
+            lastUpgradedAtStage: curStage
+          };
+        }
+
+        SoundFX.play('clear');
+        triggerRoneReaction(
+          'FACILITY_UNLOCK',
+          `와아! [${fac.name}] Lv.${targetLv} 달성 완료!! 새로 열린 기능과 해금 카드를 확인해 보세요!`,
+          'FACILITY_ZONE_SUCCESS',
+          true
+        );
+        saveGameToStorage();
+        updateAllUI();
+        openFacilityUpgradeCompleteModal(fac, curLv, targetLv);
+        return true;
+      } finally {
+        RuntimeUI.facilityActionLock = false;
       }
-
-      const costG = fac.costsByLv[curLv];
-      if (GameState.gold + 1e-6 < costG) {
-        SoundFX.play('alert');
-        triggerRoneReaction('NO_MONEY', `시설 발전에 필요한 예산(${costG}G)이 부족해요!`, 'NO_MONEY_WARN', false);
-        return;
-      }
-
-      GameState.gold = Math.max(0, GameState.gold - costG);
-      GameState.facilityLevels[fac.id] = targetLv;
-
-      SoundFX.play('clear');
-      triggerRoneReaction(
-        'FACILITY_UNLOCK',
-        `와아! [${fac.name}] Lv.${targetLv} 달성 완료!! 새로 열린 기능과 해금 카드를 확인해 보세요!`,
-        'FACILITY_ZONE_SUCCESS',
-        true
-      );
-      saveGameToStorage();
-      updateAllUI();
-      openFacilityUpgradeCompleteModal(fac, curLv, targetLv);
     }
 
     function openDeckEditorModal() {
@@ -6232,9 +6851,10 @@
       totalEl.textContent = draftTotal;
       totalEl.className = draftTotal === CONFIG.deckSize ? 'text-lime-700 text-sm' : 'text-rose-600 text-sm';
 
-      const changeCost = getNextStrategyChangeCost();
+      const hasFreeCredit = (GameState.freeDeckEditCredits || 0) > 0;
+      const changeCost = getNextStrategyChangeCost(true);
       const saveBtn = document.getElementById('btnSavePendingDeck');
-      saveBtn.textContent = `💾 편성 확정 (${changeCost === 0 ? '이번 구간 1회 무료' : `${changeCost}G`} · 다음 순환 적용)`;
+      saveBtn.textContent = `💾 편성 확정 (${hasFreeCredit ? '이관 보너스 1회 무료(0G)' : changeCost === 0 ? '이번 구간 1회 무료' : `${changeCost}G`} · 다음 순환 적용)`;
 
       document.getElementById('activeDeckSummaryText').textContent = GameState.pendingDeck
         ? `12장 (예약됨 · 구간 변경 ${GameState.strategyChangesInPeriod}회)`
@@ -6346,7 +6966,8 @@
         return;
       }
 
-      const cost = getNextStrategyChangeCost();
+      const usingFreeCredit = (GameState.freeDeckEditCredits || 0) > 0;
+      const cost = getNextStrategyChangeCost(true);
       if (GameState.gold + 1e-6 < cost) {
         SoundFX.play('alert');
         triggerRoneReaction('NO_MONEY', `덱 편성 변경 비용(${cost}G)이 부족해요!`, 'NO_MONEY_WARN', false);
@@ -6355,7 +6976,11 @@
       }
 
       GameState.gold = Math.max(0, GameState.gold - cost);
-      GameState.strategyChangesInPeriod += 1;
+      if (usingFreeCredit) {
+        GameState.freeDeckEditCredits = Math.max(0, (GameState.freeDeckEditCredits || 0) - 1);
+      } else {
+        GameState.strategyChangesInPeriod += 1;
+      }
       GameState.pendingDeck = draftList;
 
       SoundFX.play('clear');
@@ -6887,15 +7512,24 @@
     function openInspectionModal(checkRes, isRehearsal = true, finalReport = null) {
       const insp = GameState.inspectionState;
       const cityLv = GameState.cityLevel || 1;
-      document.getElementById('levelUpCurrentBadge').textContent = `도시 Lv.${cityLv} · ${insp.periodIndex}차 시찰`;
+      const q = getFacilityProgressionQuotaStatus();
+      const nextStageRow = getProgressionStageRow(Math.min(8, q.stage + 1));
+
+      document.getElementById('levelUpCurrentBadge').textContent = q.allLv3Built
+        ? `도시 Lv.3 ★완공 · 8/8차`
+        : `도시 Lv.${cityLv} · 통과 ${q.stage}/8차`;
       document.getElementById('levelUpModalTitle').textContent = isRehearsal
-        ? `🎖️ ${checkRes.req.label} 기준 안내`
-        : `🎖️ ${insp.inspectionCount}차 시찰 최종 성적표`;
+        ? `🎖️ ${checkRes.req.label}`
+        : `🎖️ 제${insp.inspectionCount}회 시찰 성적표 (${q.stage}/8차 달성)`;
 
       const curHallImg = getFacilityStageImage('deco_hall', cityLv);
       const descText = finalReport
-        ? `시찰 판정 결과: [${finalReport.gradeText}]! ${finalReport.promotedNow ? `축하합니다! 도시가 Lv.${finalReport.prevLv} → Lv.${finalReport.newLv}(으)로 승급하여 시청과 도시 외형이 발전하고 5대 주요 시설의 Lv.${finalReport.newLv} 강화 권한이 개방되었습니다!` : '이번 구간 전략 변경 누적 비용이 0G(1회 무료)로 초기화되었습니다.'}`
-        : `15분마다 정식 시찰이 진행됩니다. [개발(인구) 필수 충족 + 생활/치안 중 1개 이상 충족] 시 도시 레벨과 시청·도시 전체 외형이 한 단계 승급합니다. (마지막 시찰 기록: ${insp.lastEvaluatedGrade || '미실시'})`;
+        ? `시찰 판정 결과: [${finalReport.gradeText}]! ${
+            finalReport.stageAdvancedNow
+              ? `성장 시찰 ${finalReport.prevStage}차 → ${finalReport.newStage}차 통과! (${getProgressionStageRow(finalReport.newStage).summary})`
+              : '이번 구간 전략 변경 누적 비용이 0G(1회 무료)로 초기화되었습니다.'
+          }`
+        : `정기 시찰(15분) 또는 조기 시찰(5분 경과·3항목 충족)을 통과할 때마다 성장 차수(0→8차)가 1단계씩 올라가며 시설 개방·승급 누적 한도가 단계적으로 열립니다. (마지막 기록: ${insp.lastEvaluatedGrade || '미실시'})`;
       document.getElementById('levelUpModalDesc').innerHTML = `
         <div class="flex items-center gap-3">
           ${curHallImg ? `<img src="${curHallImg}" alt="중앙 시청 Lv.${cityLv}" class="w-20 h-16 object-cover rounded-xl border-2 border-[#3c4d24] shrink-0" />` : ''}
@@ -6905,9 +7539,19 @@
 
       const list = document.getElementById('finalAuditChecklist');
       list.innerHTML = `
-        <div class="flex items-center justify-between gap-2">
-          <span>1. 도시 개발 [필수] (인구 ${checkRes.targetPop}명 이상)</span>
-          <strong class="${checkRes.devPassed ? 'text-lime-700' : 'text-rose-600'}">현재 ${checkRes.pop}명 (${checkRes.devPassed ? '충족 ✔' : '미달 ✘'})</strong>
+        <div class="p-2.5 rounded-xl bg-white border border-[#3c4d24] text-xs space-y-1">
+          <div class="font-trickcal text-lime-950">🏛️ 현재 시설 권한 한도 (${q.stage}/8차) ${q.stage < 8 ? `→ 다음(${q.stage + 1}차) 통과 시` : '(최종 해금 완료)'}</div>
+          <div>• 시설 개방: <strong>${q.openedCount}/${q.row.maxOpened}곳</strong> ${q.stage < 8 ? `→ 한도 <strong>${nextStageRow.maxOpened}곳</strong>` : ''}</div>
+          <div>• Lv.2 이상 시설: <strong>${q.lv2PlusCount}/${q.row.maxLv2Plus}곳</strong> (승급 가능 ${q.remLv2Plus}곳) ${q.stage < 8 ? `→ 한도 <strong>${nextStageRow.maxLv2Plus}곳</strong>` : ''}</div>
+          <div>• Lv.3 시설: <strong>${q.lv3Count}/${q.row.maxLv3}곳</strong> (승급 가능 ${q.remLv3}곳) ${q.stage < 8 ? `→ 한도 <strong>${nextStageRow.maxLv3}곳</strong>` : ''}</div>
+          <div class="text-[11px] text-slate-600">※ 시청은 한도에서 제외되며, 8차 시찰 완료(권한 해금 완료)와 전 시설 Lv.3 건설 완료는 별도로 기록됩니다.</div>
+        </div>
+        <div class="flex flex-col gap-0.5 pt-1">
+          <div class="flex items-center justify-between gap-2">
+            <span>1. 도시 발전 [필수·복수경로] (인구 ${checkRes.targetPop}명 또는 복합기준)</span>
+            <strong class="${checkRes.devPassed ? 'text-lime-700' : 'text-rose-600'}">${checkRes.devPassed ? '충족 ✔' : '미달 ✘'}</strong>
+          </div>
+          <div class="text-[11px] text-slate-600">${checkRes.devPathText}</div>
         </div>
         <div class="flex items-center justify-between gap-2">
           <span>2. 시민 생활 (최근 3분 평균 H >= ${checkRes.targetAvgH})</span>
@@ -6918,13 +7562,13 @@
           <strong class="${checkRes.secPassed ? 'text-lime-700' : 'text-rose-600'}">${checkRes.secPassed ? '충족 ✔' : '미달 ✘'}</strong>
         </div>
         <div class="pt-2 border-t border-[#3c4d24]/30 text-xs text-lime-950 flex items-center justify-between gap-2">
-          <span>예상 판정 & 도시 승급 여부:</span>
+          <span>예상 판정 & 차수 진행:</span>
           <strong>${
             checkRes.passedCount === 3
-              ? `🌟 우수 (+10G·상업수입 +20%${checkRes.canPromote ? ` · 도시 Lv.${cityLv + 1} 승급!` : ''})`
+              ? `🌟 우수 (+10G·상업수입 +20%${checkRes.canAdvanceStage ? ` · ${q.stage + 1}차 해금!` : ''})`
               : checkRes.passedCount === 2
-              ? `🙂 보통 (${checkRes.canPromote ? `도시 Lv.${cityLv + 1} 승급 가능!` : '개발 미달로 승급 보류'})`
-              : '😢 미달 (3분간 상업수입 -10% · 승급 불가)'
+              ? `🙂 보통 (${checkRes.canAdvanceStage ? `${q.stage + 1}차 해금 승인!` : '발전 기준 미달로 차수 동결'})`
+              : '😢 미달 (3분간 상업수입 -10% · 동일 차수 재도전)'
           }</strong>
         </div>
       `;
@@ -7576,6 +8220,28 @@
           showToast('❌ 올바르지 않거나 손상된 저장 코드입니다!', 'bg-rose-600 border-slate-900 text-white');
         }
       });
+      const btnExportRaw = document.getElementById('btnExportRawBackupFile');
+      if (btnExportRaw) {
+        btnExportRaw.addEventListener('click', () => {
+          const rawStr = localStorage.getItem(STORAGE_KEY_BACKUP_RAW);
+          if (!rawStr) {
+            SoundFX.play('alert');
+            showToast('ℹ️ 보관된 구버전 변환 전 원본 백업이 없습니다.', 'bg-amber-200 border-slate-900 text-amber-950');
+            return;
+          }
+          const blob = new Blob([rawStr], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `monatium_raw_backup_before_v13.json`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          SoundFX.play('clear');
+          showToast('🛡️ 변환 전 원본 백업(.json)을 내보냈습니다!', 'bg-[#dff2b0] border-[#3c4d24] text-lime-950');
+        });
+      }
       document.getElementById('btnExportSaveFile').addEventListener('click', () => {
         saveGameToStorage(STORAGE_KEY_AUTO);
         const dataStr = JSON.stringify(GameState, null, 2);
