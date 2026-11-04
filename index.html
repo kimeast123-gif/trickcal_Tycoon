@@ -527,6 +527,8 @@
 
 
 
+
+
     * {
       box-sizing: border-box;
       user-select: none;
@@ -995,6 +997,9 @@
         <div id="viewModeStageBadge" class="trickcal-pill px-3 py-1.5 rounded-2xl font-trickcal text-xs shadow-lg text-slate-900">
           🌆 도시 Lv.1 · START
         </div>
+        <button id="btnToggleViewFitMode" type="button" onclick="MapCamera.toggleViewFitMode()" class="trickcal-btn-cream bg-[#e0f2fe] hover:bg-sky-200 text-sky-950 min-h-[40px] px-3 py-1.5 rounded-2xl font-trickcal text-xs shadow-lg flex items-center gap-1.5" title="화면 채우기(드래그 이동) / 전체 지도 한눈에 보기 전환">
+          <span id="viewFitModeLabel">🗺️ 화면 채우기 (드래그)</span>
+        </button>
         <button id="btnExitViewMode" type="button" onclick="toggleCityViewMode(false)" class="trickcal-btn-cream bg-[#fffdf5] hover:bg-amber-100 text-slate-900 min-h-[40px] px-3.5 py-1.5 rounded-2xl font-trickcal text-xs shadow-lg flex items-center gap-1.5">
           <span>👁️ UI 보이기</span>
           <span class="text-[10px] font-bold bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">[V]</span>
@@ -2292,17 +2297,45 @@
       activePointers: new Map(),
       pinchStartDist: 0,
       pinchStartZoom: 1.0,
+      viewFitMode: 'cover', // 'cover': 등비율 화면 채우기(드래그로 잘린 영역 확인), 'contain': 등비율 전체 지도 한눈에 보기
 
       getBaseFitScales() {
         const inViewMode = typeof isCityViewMode !== 'undefined' && isCityViewMode;
         if (inViewMode) {
-          // 뷰 모드에서는 최대한 축소했을 때(zoom = 1.0) 1376x768 도시 전체가 현재 가시 화면(viewW x viewH) 한 화면에 100% 다 들어오도록 기준 배율 설정
+          // 1.8.1 안정화: 도시 감상 모드에서 항상 X/Y 동일 등비율(uniformScale)만 사용하여 비균등 왜곡을 원천 차단
+          const uniformScale = this.viewFitMode === 'contain'
+            ? Math.min(this.viewW / STAGE_W, this.viewH / STAGE_H)
+            : Math.max(this.viewW / STAGE_W, this.viewH / STAGE_H);
           return {
-            sx: this.viewW / STAGE_W,
-            sy: this.viewH / STAGE_H
+            sx: uniformScale,
+            sy: uniformScale
           };
         }
         return { sx: 1.0, sy: 1.0 };
+      },
+
+      syncViewFitButtonUI() {
+        const labelEl = document.getElementById('viewFitModeLabel');
+        if (!labelEl) return;
+        labelEl.textContent = this.viewFitMode === 'contain'
+          ? '🖼️ 전체 한눈에 (클릭: 화면 채우기)'
+          : '🗺️ 화면 채우기 (드래그 이동)';
+      },
+
+      toggleViewFitMode(forceMode) {
+        if (typeof isCityViewMode === 'undefined' || !isCityViewMode) return;
+        this.stopInertia();
+        this.viewFitMode = (typeof forceMode === 'string')
+          ? forceMode
+          : (this.viewFitMode === 'cover' ? 'contain' : 'cover');
+        this.zoom = 1.0;
+        const base = this.getBaseFitScales();
+        const worldW = STAGE_W * base.sx;
+        const worldH = STAGE_H * base.sy;
+        this.panX = Math.round((this.viewW - worldW) * 0.50);
+        this.panY = Math.round((this.viewH - worldH) * (this.viewFitMode === 'contain' ? 0.50 : 0.42));
+        this.syncViewFitButtonUI();
+        this.clampAndApply();
       },
 
       updateBounds(viewW, viewH, stageScale, isFirstLayout) {
@@ -2315,8 +2348,9 @@
           this.minZoom = 1.0;
           this.maxZoom = 1.85;
           this.zoom = Math.min(this.maxZoom, Math.max(this.minZoom, this.zoom));
+          this.syncViewFitButtonUI();
         } else {
-          // 일반 플레이 모드: 배경 화면 전체(1376x768)가 현재 가시 뷰포트(viewW x viewH)를 빈틈없이 덮는 최소 배율
+          // 일반 플레이 모드: 배경 화면 전체(1376x768)가 현재 가시 뷰포트(viewW x viewH)를 등비율로 빈틈없이 덮는 최소 배율
           const coverZoom = Math.max(viewW / STAGE_W, viewH / STAGE_H, 1.0);
           this.minZoom = coverZoom;
           this.maxZoom = Math.max(coverZoom * 1.65, 1.75);
@@ -2340,15 +2374,30 @@
 
       clampAndApply() {
         const base = this.getBaseFitScales();
-        const effScaleX = base.sx * this.zoom;
-        const effScaleY = base.sy * this.zoom;
+        // X/Y 항상 동일 배율(effScale) 보장
+        const effScale = base.sx * this.zoom;
+        const effScaleX = effScale;
+        const effScaleY = effScale;
         const worldW = STAGE_W * effScaleX;
         const worldH = STAGE_H * effScaleY;
-        this.minPanX = Math.min(0, this.viewW - worldW);
-        this.minPanY = Math.min(0, this.viewH - worldH);
-        // 배경 화면 전체(0 ~ worldW, 0 ~ worldH)를 고정 틀로 삼아 절대 배경 바깥 여백으로 넘어가지 않도록 클램핑
-        this.panX = Math.max(this.minPanX, Math.min(0, this.panX));
-        this.panY = Math.max(this.minPanY, Math.min(0, this.panY));
+
+        if (worldW <= this.viewW) {
+          const cx = Math.round((this.viewW - worldW) * 0.5);
+          this.minPanX = cx;
+          this.panX = cx;
+        } else {
+          this.minPanX = this.viewW - worldW;
+          this.panX = Math.max(this.minPanX, Math.min(0, this.panX));
+        }
+
+        if (worldH <= this.viewH) {
+          const cy = Math.round((this.viewH - worldH) * 0.5);
+          this.minPanY = cy;
+          this.panY = cy;
+        } else {
+          this.minPanY = this.viewH - worldH;
+          this.panY = Math.max(this.minPanY, Math.min(0, this.panY));
+        }
 
         const mapContainer = document.getElementById('cityMapContainer');
         if (mapContainer) {
@@ -2724,11 +2773,11 @@
             MapCamera._savedGamePanX = MapCamera.panX;
             MapCamera._savedGamePanY = MapCamera.panY;
           }
-          // 뷰 모드 진입 시 최대한 축소(zoom = 1.0, pan = 0,0)하여 1376x768 도시 전체가 한 화면에 모두 들어오게 표시
+          // 1.8.1 안정화: 도시 감상 모드 진입 시 등비율 화면 채우기('cover', zoom = 1.0)로 시작하며 잘린 상·하/좌·우 영역을 드래그로 확인 가능
+          MapCamera.viewFitMode = 'cover';
           MapCamera.zoom = 1.0;
-          MapCamera.panX = 0;
-          MapCamera.panY = 0;
         } else if (changed && MapCamera._savedGameZoom !== undefined) {
+          MapCamera.viewFitMode = 'cover';
           MapCamera.zoom = MapCamera._savedGameZoom;
           MapCamera.panX = MapCamera._savedGamePanX || 0;
           MapCamera.panY = MapCamera._savedGamePanY || 0;
@@ -2736,6 +2785,15 @@
       }
       if (typeof ResponsiveStage === 'object' && ResponsiveStage && typeof ResponsiveStage.updateScale === 'function') {
         ResponsiveStage.updateScale();
+      }
+      if (isCityViewMode && changed && typeof MapCamera === 'object' && MapCamera) {
+        const base = MapCamera.getBaseFitScales();
+        const worldW = STAGE_W * base.sx * MapCamera.zoom;
+        const worldH = STAGE_H * base.sy * MapCamera.zoom;
+        MapCamera.panX = Math.round(Math.min(0, MapCamera.viewW - worldW) * 0.50);
+        MapCamera.panY = Math.round(Math.min(0, MapCamera.viewH - worldH) * 0.42);
+        MapCamera.syncViewFitButtonUI();
+        MapCamera.clampAndApply();
       }
       if (typeof SoundEngine !== 'undefined' && SoundEngine.playClick) SoundEngine.playClick();
     }
