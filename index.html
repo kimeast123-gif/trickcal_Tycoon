@@ -529,14 +529,6 @@
 
 
 
-
-
-
-
-
-
-
-
     * {
       box-sizing: border-box;
       user-select: none;
@@ -1985,9 +1977,9 @@
         <button id="btnCloseSaveModal" type="button" class="trickcal-btn-cream min-h-[42px] px-3.5 py-1.5 rounded-xl font-trickcal text-sm shrink-0">✕ 닫기</button>
       </div>
 
-      <div id="saveModalScrollBody" class="flex-1 p-3 sm:p-4 overflow-y-auto space-y-3 text-xs sm:text-sm">
+      <div class="flex-1 p-4 sm:p-5 overflow-y-auto space-y-4 text-xs sm:text-sm pb-6">
         <!-- 1. 브라우저 슬롯 저장소 -->
-        <div class="bg-[#eef8d2] border-2 border-[#3c4d24] rounded-2xl p-3 space-y-2">
+        <div class="bg-[#eef8d2] border-2 border-[#3c4d24] rounded-2xl p-3.5 sm:p-4 space-y-2.5">
           <div class="flex items-center justify-between flex-wrap gap-2">
             <span class="font-trickcal text-sm sm:text-base text-lime-950">🗂️ 브라우저 세이브 슬롯 (자동 저장 + 수동 슬롯 3개)</span>
             <button id="btnQuickAutoSaveNow" type="button" class="trickcal-btn min-h-[40px] px-3 py-1 rounded-xl font-trickcal text-xs text-stroke-dark">⚡ 지금 즉시 자동저장 갱신</button>
@@ -2193,52 +2185,6 @@
 
     const STAGE_W = 1376;
     const STAGE_H = 768;
-    // 샌드박스 iframe(Canvas 등)에서 localStorage 접근이 차단(SecurityError)되더라도
-    // 세션 메모리 + window.name 폴백을 통해 자동 저장과 수동 슬롯 1~3이 100% 정상 작동하도록 보장하는 스토리지 어댑터
-    const SafeStorage = (() => {
-      const mem = {};
-      try {
-        if (typeof window.name === 'string' && window.name.startsWith('__MT_SAFE_STORE__:')) {
-          const parsed = JSON.parse(window.name.slice('__MT_SAFE_STORE__:'.length));
-          if (parsed && typeof parsed === 'object') {
-            Object.assign(mem, parsed);
-          }
-        }
-      } catch (e) {}
-
-      function syncWindowName() {
-        try {
-          window.name = '__MT_SAFE_STORE__:' + JSON.stringify(mem);
-        } catch (e) {}
-      }
-
-      return {
-        getItem(key) {
-          try {
-            const v = window.localStorage.getItem(key);
-            if (v !== null && v !== undefined) return v;
-          } catch (e) {}
-          return Object.prototype.hasOwnProperty.call(mem, key) ? mem[key] : null;
-        },
-        setItem(key, val) {
-          const strVal = String(val);
-          mem[key] = strVal;
-          syncWindowName();
-          try {
-            window.localStorage.setItem(key, strVal);
-          } catch (e) {}
-          return true;
-        },
-        removeItem(key) {
-          delete mem[key];
-          syncWindowName();
-          try {
-            window.localStorage.removeItem(key);
-          } catch (e) {}
-        }
-      };
-    })();
-
     const STORAGE_KEY_AUTO = 'monatium_tycoon_save_auto';
     const STORAGE_KEY_BACKUP_RAW = 'monatium_tycoon_save_backup_raw';
     const STORAGE_KEY_SLOT_PREFIX = 'monatium_tycoon_save_slot_';
@@ -2989,69 +2935,20 @@
       };
     }
 
-    function isFiniteNumeric(val) {
-      return val !== null && val !== undefined && val !== '' && typeof val !== 'boolean' && Number.isFinite(Number(val));
-    }
-
     function getFacilityStageMeta(facId, stateObj = GameState) {
       const metaMap = (stateObj && stateObj.facilityStageMeta) || {};
       const entry = metaMap[facId];
-      const curLv = (stateObj && stateObj.facilityLevels && stateObj.facilityLevels[facId]) || 0;
-      if (curLv <= 0) {
-        return { openedAtStage: null, lastUpgradedAtStage: null };
-      }
       if (entry && typeof entry === 'object') {
         return {
-          openedAtStage: isFiniteNumeric(entry.openedAtStage) ? Number(entry.openedAtStage) : -1,
-          lastUpgradedAtStage: isFiniteNumeric(entry.lastUpgradedAtStage) ? Number(entry.lastUpgradedAtStage) : -1
+          openedAtStage: Number.isFinite(Number(entry.openedAtStage)) ? Number(entry.openedAtStage) : null,
+          lastUpgradedAtStage: Number.isFinite(Number(entry.lastUpgradedAtStage)) ? Number(entry.lastUpgradedAtStage) : null
         };
       }
-      return { openedAtStage: -1, lastUpgradedAtStage: -1 };
-    }
-
-    function syncStructuredCityDesignStates(stateObj = GameState) {
-      if (!stateObj || typeof stateObj !== 'object') return;
-      const stg = Math.max(0, Math.min(8, Math.round(Number(stateObj.passedInspectionStage) || 0)));
-      const row = getProgressionStageRow(stg);
-      stateObj.inspectionStage = stg;
-      stateObj.cityVisualStage = Math.max(stateObj.cityLevel || 1, row.cityVisualStage || row.cityLevel || 1);
-
-      if (!stateObj.facilityState || typeof stateObj.facilityState !== 'object') {
-        stateObj.facilityState = {};
+      const curLv = (stateObj && stateObj.facilityLevels && stateObj.facilityLevels[facId]) || 0;
+      if (curLv > 0) {
+        return { openedAtStage: -1, lastUpgradedAtStage: -1 };
       }
-      UNLOCKABLE_FACILITY_IDS.forEach(fid => {
-        const lv = Math.max(0, Math.min(3, Math.round(Number(stateObj.facilityLevels && stateObj.facilityLevels[fid]) || 0)));
-        const meta = getFacilityStageMeta(fid, stateObj);
-        stateObj.facilityState[fid] = {
-          opened: lv >= 1,
-          level: lv,
-          openedAtStage: lv >= 1 ? meta.openedAtStage : null,
-          lastUpgradedAtStage: lv >= 1 ? meta.lastUpgradedAtStage : null
-        };
-      });
-
-      const activeResBldgs = Array.isArray(stateObj.buildings)
-        ? stateObj.buildings.filter(b => b && b.active !== false && b.zone === 'res').length
-        : 2;
-      stateObj.districtDecorationState = {
-        resBuildingCount: activeResBldgs,
-        resGrowthDecorActive: false,
-        specStatus: 'pending_separate_planning'
-      };
-
-      const keepLegacyFull = Boolean(stateObj.preserveLegacyFullMap || stateObj.visualCompatibilityState?.preserveLegacyFullMap);
-      stateObj.preserveLegacyFullMap = keepLegacyFull;
-      if (!stateObj.visualCompatibilityState || typeof stateObj.visualCompatibilityState !== 'object') {
-        stateObj.visualCompatibilityState = {
-          schemaVersion: SCHEMA_VERSION,
-          preservedVisualStage: stateObj.visualStageFloor || 1,
-          preserveLegacyFullMap: keepLegacyFull
-        };
-      } else {
-        stateObj.visualCompatibilityState.schemaVersion = SCHEMA_VERSION;
-        stateObj.visualCompatibilityState.preservedVisualStage = stateObj.visualStageFloor || 1;
-        stateObj.visualCompatibilityState.preserveLegacyFullMap = keepLegacyFull;
-      }
+      return { openedAtStage: null, lastUpgradedAtStage: null };
     }
 
     function checkFacilityActionEligibility(facId, stateObj = GameState) {
@@ -5238,14 +5135,14 @@
       try {
         if (!rawObj || typeof rawObj !== 'object') return;
         const isLegacyPreV13 = !rawObj.progressionMigratedV13 || rawObj.version !== SCHEMA_VERSION;
-        const existingBackup = SafeStorage.getItem(STORAGE_KEY_BACKUP_RAW);
+        const existingBackup = localStorage.getItem(STORAGE_KEY_BACKUP_RAW);
         if (!existingBackup) {
-          SafeStorage.setItem(STORAGE_KEY_BACKUP_RAW, JSON.stringify(rawObj));
+          localStorage.setItem(STORAGE_KEY_BACKUP_RAW, JSON.stringify(rawObj));
         } else if (isLegacyPreV13) {
           try {
             const parsedExisting = JSON.parse(existingBackup);
             if (parsedExisting && parsedExisting.progressionMigratedV13) {
-              SafeStorage.setItem(STORAGE_KEY_BACKUP_RAW, JSON.stringify(rawObj));
+              localStorage.setItem(STORAGE_KEY_BACKUP_RAW, JSON.stringify(rawObj));
             }
           } catch (e) {}
         }
@@ -5568,22 +5465,10 @@
         : [];
 
       if (raw.eventState && typeof raw.eventState === 'object') {
-        let cleanActiveEvent = null;
-        const rawEv = raw.eventState.activeEvent;
-        if (rawEv && typeof rawEv === 'object' && (rawEv.phase === 'warning' || rawEv.phase === 'active') && typeof rawEv.title === 'string' && toFiniteNumber(rawEv.remainingSec, 0) > 0) {
-          cleanActiveEvent = {
-            ...rawEv,
-            phase: rawEv.phase,
-            title: rawEv.title,
-            desc: typeof rawEv.desc === 'string' ? rawEv.desc : '',
-            remainingSec: toFiniteNumber(rawEv.remainingSec, 30, 1, 120),
-            reqSec: Math.round(toFiniteNumber(rawEv.reqSec, 10, 1, 500))
-          };
-        }
         migrated.eventState = {
           ...base.eventState,
-          nextEventTime: Math.max(migrated.activeSeconds + 15, toFiniteNumber(raw.eventState.nextEventTime, base.eventState.nextEventTime, 0, 1e9)),
-          activeEvent: cleanActiveEvent,
+          nextEventTime: toFiniteNumber(raw.eventState.nextEventTime, base.eventState.nextEventTime, 0, 1e9),
+          activeEvent: raw.eventState.activeEvent && typeof raw.eventState.activeEvent === 'object' ? { ...raw.eventState.activeEvent } : null,
           majorEventsInPeriod: Math.round(toFiniteNumber(raw.eventState.majorEventsInPeriod, 0, 0, 99)),
           resolvedInPeriod: Math.round(toFiniteNumber(raw.eventState.resolvedInPeriod, 0, 0, 999)),
           totalFinishedInPeriod: Math.round(toFiniteNumber(raw.eventState.totalFinishedInPeriod, 0, 0, 999)),
@@ -5593,14 +5478,11 @@
 
       if (raw.inspectionState && typeof raw.inspectionState === 'object') {
         const pIdx = Math.round(toFiniteNumber(raw.inspectionState.periodIndex, 1, 1, 9999));
-        const safePeriodStart = Math.min(migrated.activeSeconds, toFiniteNumber(raw.inspectionState.periodStartTime, 0, 0, 1e9));
-        const rawNextInsp = toFiniteNumber(raw.inspectionState.nextInspectionTime, safePeriodStart + CONFIG.inspectionIntervalSec, 0, 1e9);
-        const safeNextInsp = Math.max(safePeriodStart + 60, rawNextInsp);
         migrated.inspectionState = {
           ...base.inspectionState,
           firstCheckDone: Boolean(raw.inspectionState.firstCheckDone),
-          periodStartTime: safePeriodStart,
-          nextInspectionTime: safeNextInsp,
+          periodStartTime: toFiniteNumber(raw.inspectionState.periodStartTime, 0, 0, 1e9),
+          nextInspectionTime: toFiniteNumber(raw.inspectionState.nextInspectionTime, CONFIG.inspectionIntervalSec, 0, 1e9),
           periodIndex: pIdx,
           inspectionCount: Math.round(toFiniteNumber(raw.inspectionState.inspectionCount, pIdx - 1, 0, 9999)),
           lastEvaluatedGrade: typeof raw.inspectionState.lastEvaluatedGrade === 'string'
@@ -5669,12 +5551,12 @@
             migrated.facilityStageMeta[fid] = { openedAtStage: null, lastUpgradedAtStage: null };
           } else {
             migrated.facilityStageMeta[fid] = {
-              openedAtStage: isFiniteNumeric(rawMeta?.openedAtStage) ? Number(rawMeta.openedAtStage) : -1,
-              lastUpgradedAtStage: isFiniteNumeric(rawMeta?.lastUpgradedAtStage) ? Number(rawMeta.lastUpgradedAtStage) : -1
+              openedAtStage: Number.isFinite(Number(rawMeta?.openedAtStage)) ? Number(rawMeta.openedAtStage) : -1,
+              lastUpgradedAtStage: Number.isFinite(Number(rawMeta?.lastUpgradedAtStage)) ? Number(rawMeta.lastUpgradedAtStage) : -1
             };
           }
         });
-        migrated.inspectionState.targetSnapshot = raw.inspectionState?.targetSnapshot && isFiniteNumeric(raw.inspectionState.targetSnapshot.targetPop)
+        migrated.inspectionState.targetSnapshot = raw.inspectionState?.targetSnapshot && Number.isFinite(Number(raw.inspectionState.targetSnapshot.targetPop))
           ? { ...getInspectionRequirementsByStage(savedStage), ...raw.inspectionState.targetSnapshot }
           : getInspectionRequirementsByStage(savedStage);
       } else {
@@ -5683,9 +5565,9 @@
         // - 기존 보유 시설 수/레벨이 신규 상한보다 높아도 철거·강등하지 않고 초과분 보존 (신규 개방·강화 시에만 현재 보유량 기준으로 상한 비교)
         // - 이미 발전한 지형을 사용하던 기존 저장은 외관 보존 상태(visualStageFloor / preserveLegacyFullMap)를 유지하여 복개를 되돌리거나 도시를 비우지 않음
         let mappedStage = 0;
-        if (isFiniteNumeric(raw.passedInspectionStage)) {
+        if (Number.isFinite(Number(raw.passedInspectionStage))) {
           mappedStage = Math.max(0, Math.min(8, Math.round(Number(raw.passedInspectionStage))));
-        } else if (isFiniteNumeric(raw.inspectionStage)) {
+        } else if (Number.isFinite(Number(raw.inspectionStage))) {
           mappedStage = Math.max(0, Math.min(8, Math.round(Number(raw.inspectionStage))));
         } else {
           // passedInspectionStage가 없던 구버전(v1.1/v1.2)의 경우 기존 도시 레벨(1/2/3)이 의미하던 최소 기반 단계(0 / 3 / 6, 또는 전시설 Lv.3 완공 시 8)로만 명시적 변환
@@ -5724,10 +5606,10 @@
           const curLv = migrated.facilityLevels[fid] || 0;
           const rawMeta = (raw.facilityStageMeta && raw.facilityStageMeta[fid]) || (raw.facilityState && raw.facilityState[fid]);
           if (curLv > 0) {
-            const safeOpenStg = isFiniteNumeric(rawMeta?.openedAtStage)
+            const safeOpenStg = Number.isFinite(Number(rawMeta?.openedAtStage))
               ? Math.min(mappedStage - 1, Number(rawMeta.openedAtStage))
               : -1;
-            const safeUpgStg = isFiniteNumeric(rawMeta?.lastUpgradedAtStage)
+            const safeUpgStg = Number.isFinite(Number(rawMeta?.lastUpgradedAtStage))
               ? Math.min(mappedStage - 1, Number(rawMeta.lastUpgradedAtStage))
               : -1;
             migrated.facilityStageMeta[fid] = {
@@ -5776,8 +5658,6 @@
         };
       }
 
-      // 손패(4장) + 뽑기 더미 + 버림 더미가 activeDeck(12장) 구성과 정확히 일치하도록 보존·보충
-      reconcileDeckAndPilesForState(migrated);
       syncStructuredCityDesignStates(migrated);
       if (!validateMigratedStateInvariants(migrated)) {
         return null;
@@ -5786,124 +5666,20 @@
       return migrated;
     }
 
-    function reconcileDeckAndPilesForState(stateObj) {
-      if (!stateObj || !Array.isArray(stateObj.activeDeck)) return;
-      const budget = {};
-      stateObj.activeDeck.forEach(cid => {
-        budget[cid] = (budget[cid] || 0) + 1;
-      });
-
-      const keptHand = [];
-      (stateObj.hand || []).forEach(slot => {
-        if (slot && slot.cardId && budget[slot.cardId] > 0 && keptHand.length < 4) {
-          budget[slot.cardId] -= 1;
-          keptHand.push({
-            instanceId: slot.instanceId || `card_inst_${++stateObj.nextInstanceSeq}`,
-            cardId: slot.cardId,
-            locked: Boolean(slot.locked)
-          });
-        }
-      });
-
-      const keptDraw = [];
-      (stateObj.drawPile || []).forEach(item => {
-        if (item && item.cardId && budget[item.cardId] > 0) {
-          budget[item.cardId] -= 1;
-          keptDraw.push({
-            instanceId: item.instanceId || `card_inst_${++stateObj.nextInstanceSeq}`,
-            cardId: item.cardId
-          });
-        }
-      });
-
-      const keptDiscard = [];
-      (stateObj.discardPile || []).forEach(item => {
-        if (item && item.cardId && budget[item.cardId] > 0) {
-          budget[item.cardId] -= 1;
-          keptDiscard.push({
-            instanceId: item.instanceId || `card_inst_${++stateObj.nextInstanceSeq}`,
-            cardId: item.cardId
-          });
-        }
-      });
-
-      // activeDeck 중 아직 손패·뽑기·버림 더미에 없는 카드를 뽑기 더미에 추가
-      Object.keys(budget).forEach(cid => {
-        const rem = budget[cid] || 0;
-        for (let i = 0; i < rem; i++) {
-          keptDraw.push({
-            instanceId: `card_inst_${++stateObj.nextInstanceSeq}`,
-            cardId: cid
-          });
-        }
-      });
-
-      // 손패가 4장 미만이면 뽑기 더미(부족 시 버림 더미 재셔플)에서 4장까지 채움
-      while (keptHand.length < 4) {
-        if (keptDraw.length === 0 && keptDiscard.length > 0) {
-          while (keptDiscard.length > 0) {
-            keptDraw.push(keptDiscard.pop());
-          }
-        }
-        if (keptDraw.length === 0) break;
-        const drawn = keptDraw.pop();
-        keptHand.push({
-          instanceId: drawn.instanceId,
-          cardId: drawn.cardId,
-          locked: false
-        });
-      }
-
-      stateObj.hand = keptHand;
-      stateObj.drawPile = keptDraw;
-      stateObj.discardPile = keptDiscard;
-    }
-
-    function resetTransientModalsAndRuntimeState() {
-      if (typeof clearInspectionCutsceneTimers === 'function') {
-        clearInspectionCutsceneTimers();
-      }
-      if (typeof InspectionCutsceneManager === 'object' && InspectionCutsceneManager) {
-        InspectionCutsceneManager.state = 'idle';
-      }
-      const cutOverlay = document.getElementById('inspectionCutsceneOverlay');
-      if (cutOverlay) cutOverlay.classList.add('hidden');
-      if (typeof isCityViewMode !== 'undefined' && isCityViewMode) {
-        toggleCityViewMode(false);
-      }
-      ['modalCardDetail', 'modalFacilityComplete', 'modalFacility', 'modalDeck', 'modalZoneManager', 'modalCityLevelUp', 'modalGoldDetail'].forEach(mid => {
-        const el = document.getElementById(mid);
-        if (el) el.classList.add('hidden');
-      });
-      RuntimeUI.demolishSelectMode = false;
-      RuntimeUI.demolishHandSlotIdx = null;
-      RuntimeUI.selectedDemolishBuildingId = null;
-      RuntimeUI.isPausedByUser = false;
-      const pauseBtn = document.getElementById('btnPauseToggle');
-      if (pauseBtn) pauseBtn.textContent = '⏸️ 정지';
-      const speedBtn = document.getElementById('btnSpeedToggle');
-      if (speedBtn) speedBtn.textContent = `⏩ ${(GameState && GameState.speedMultiplier) || 1}x`;
-    }
-
-    function preSyncCityBackgroundStageAttr() {
-      const bgImgEl = document.getElementById('cityBgImage');
-      if (!bgImgEl) return;
-      const visStage = getVisualCityStage();
-      bgImgEl.src = getBaseTerrainAssetForCurrentState();
-      bgImgEl.setAttribute('data-stage', String(visStage));
-    }
-
     function applyLoadedStateToGame(migratedState, toastMessage = '📂 저장된 도시 데이터를 불러왔습니다!') {
       if (!migratedState) return false;
       GameState = migratedState;
       recalculateAllBuildingSpaces();
-      reconcileDeckAndPilesForState(GameState);
-      resetTransientModalsAndRuntimeState();
-      preSyncCityBackgroundStageAttr();
+      if (!GameState.hand || GameState.hand.filter(Boolean).length < 4) {
+        initStartingHand();
+      }
+      RuntimeUI.demolishSelectMode = false;
+      RuntimeUI.demolishHandSlotIdx = null;
+      const speedBtn = document.getElementById('btnSpeedToggle');
+      if (speedBtn) speedBtn.textContent = `⏩ ${GameState.speedMultiplier || 1}x`;
       saveGameToStorage();
       renderDemolishBanner();
       updateAllUI();
-      refreshIntroSaveBanner();
       if (GameState.migrationNotice && GameState.migrationNotice.message && !GameState.migrationNotice.toastShown) {
         GameState.migrationNotice.toastShown = true;
         saveGameToStorage();
@@ -5916,9 +5692,8 @@
 
     function saveGameToStorage(slotKey = STORAGE_KEY_AUTO) {
       try {
-        syncStructuredCityDesignStates(GameState);
         GameState.savedAtISO = new Date().toISOString();
-        SafeStorage.setItem(slotKey, JSON.stringify(GameState));
+        localStorage.setItem(slotKey, JSON.stringify(GameState));
         return true;
       } catch (e) {
         if (slotKey !== STORAGE_KEY_AUTO && !RuntimeUI.storageWarnShown) {
@@ -5931,7 +5706,7 @@
 
     function readSlotDataFromStorage(slotKey) {
       try {
-        const raw = SafeStorage.getItem(slotKey);
+        const raw = localStorage.getItem(slotKey);
         if (!raw) return null;
         const parsed = JSON.parse(raw);
         return migrateAndSanitizeSaveData(parsed);
@@ -5947,7 +5722,7 @@
           for (const legKey of LEGACY_STORAGE_KEYS) {
             state = readSlotDataFromStorage(legKey);
             if (state) {
-              SafeStorage.setItem(STORAGE_KEY_AUTO, JSON.stringify(state));
+              localStorage.setItem(STORAGE_KEY_AUTO, JSON.stringify(state));
               break;
             }
           }
@@ -5996,7 +5771,7 @@
 
     function formatSaveSummary(stateObj) {
       if (!stateObj) return null;
-      const pop = (stateObj.buildings || []).reduce((acc, b) => acc + (b && b.active === false ? 0 : (b?.populationGranted || 0)), 0);
+      const pop = (stateObj.buildings || []).reduce((acc, b) => acc + (b.populationGranted || 0), 0);
       const gold = Math.floor(stateObj.gold || 0);
       const cityLv = stateObj.cityLevel || 1;
       const playMin = Math.floor((stateObj.activeSeconds || 0) / 60);
@@ -6007,7 +5782,7 @@
           savedTimeStr = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
         } catch (e) {}
       }
-      const stg = isFiniteNumeric(stateObj.passedInspectionStage) ? Number(stateObj.passedInspectionStage) : 0;
+      const stg = Number.isFinite(Number(stateObj.passedInspectionStage)) ? Number(stateObj.passedInspectionStage) : 0;
       return {
         cityLv,
         stg,
@@ -6054,8 +5829,6 @@
         }
       }
       document.getElementById('modalSaveLoad').classList.remove('hidden');
-      const scBody = document.getElementById('saveModalScrollBody');
-      if (scBody) scBody.scrollTop = 0;
     }
 
     function renderSaveSlotsGrid() {
@@ -6133,7 +5906,7 @@
       grid.querySelectorAll('[data-slot-del]').forEach(btn => {
         btn.addEventListener('click', () => {
           const k = btn.getAttribute('data-slot-del');
-          try { SafeStorage.removeItem(k); } catch (e) {}
+          try { localStorage.removeItem(k); } catch (e) {}
           SoundFX.play('reroll');
           showToast('🗑️ 해당 슬롯 데이터를 삭제했습니다.', 'bg-amber-200 border-slate-900 text-amber-950');
           renderSaveSlotsGrid();
@@ -8782,22 +8555,13 @@
       if (!loaded) {
         GameState = createInitialGameState();
         initStartingHand();
-        preSyncCityBackgroundStageAttr();
         refreshIntroSaveBanner();
         document.getElementById('modalStoryIntro').classList.remove('hidden');
       } else {
-        reconcileDeckAndPilesForState(GameState);
-        preSyncCityBackgroundStageAttr();
-        const speedBtn = document.getElementById('btnSpeedToggle');
-        if (speedBtn) speedBtn.textContent = `⏩ ${GameState.speedMultiplier || 1}x`;
-        refreshIntroSaveBanner();
-        if (GameState.migrationNotice && GameState.migrationNotice.message && !GameState.migrationNotice.toastShown) {
-          GameState.migrationNotice.toastShown = true;
-          saveGameToStorage();
-          setTimeout(() => {
-            showToast(`🛡️ ${GameState.migrationNotice.message}`, 'bg-amber-200 border-slate-900 text-amber-950');
-          }, 300);
+        if (!GameState.hand || GameState.hand.filter(Boolean).length === 0) {
+          initStartingHand();
         }
+        refreshIntroSaveBanner();
       }
 
       updateAllUI();
@@ -8977,7 +8741,8 @@
         const area = document.getElementById('saveCodeTextarea');
         if (area) {
           area.value = code;
-          try { area.focus({ preventScroll: true }); } catch (e) {}
+          area.focus();
+          area.select();
         }
         copyTextWithFallback(code);
         SoundFX.play('clear');
@@ -9006,7 +8771,7 @@
       const btnExportRaw = document.getElementById('btnExportRawBackupFile');
       if (btnExportRaw) {
         btnExportRaw.addEventListener('click', () => {
-          const rawStr = SafeStorage.getItem(STORAGE_KEY_BACKUP_RAW);
+          const rawStr = localStorage.getItem(STORAGE_KEY_BACKUP_RAW);
           if (!rawStr) {
             SoundFX.play('alert');
             showToast('ℹ️ 보관된 구버전 변환 전 원본 백업이 없습니다.', 'bg-amber-200 border-slate-900 text-amber-950');
@@ -9234,20 +8999,20 @@
       });
       document.getElementById('btnConfirmResetExec').addEventListener('click', () => {
         try {
-          SafeStorage.removeItem(STORAGE_KEY_AUTO);
-          LEGACY_STORAGE_KEYS.forEach(k => SafeStorage.removeItem(k));
+          localStorage.removeItem(STORAGE_KEY_AUTO);
+          LEGACY_STORAGE_KEYS.forEach(k => localStorage.removeItem(k));
         } catch (e) {}
         GameState = createInitialGameState();
         GameState.storySeen = true;
         initStartingHand();
-        resetTransientModalsAndRuntimeState();
-        preSyncCityBackgroundStageAttr();
+        RuntimeUI.demolishSelectMode = false;
+        RuntimeUI.demolishHandSlotIdx = null;
+        RuntimeUI.selectedDemolishBuildingId = null;
         document.getElementById('modalConfirmReset').classList.add('hidden');
         SoundFX.play('clear');
         showToast('🔄 도시가 초기 상태(보유 20G, 인구 100명, 순수익 +4.5G/분)로 리셋되었습니다!', 'bg-[#dff2b0] border-[#3c4d24] text-lime-950');
         saveGameToStorage();
         renderDemolishBanner();
-        refreshIntroSaveBanner();
         updateAllUI();
       });
     };
